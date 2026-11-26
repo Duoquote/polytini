@@ -236,8 +236,32 @@ for (const { name, api } of all) {
 }
 
 test('every entry has the same exports', () => {
-  const names = (api) => Object.keys(api).filter((k) => k != 'init' && k != 'initSync').sort();
+  // wasm adds init, initSync and the batch functions.
+  const extra = ['init', 'initSync', 'decodeMany', 'encodeMany'];
+  const names = (api) => Object.keys(api).filter((k) => !extra.includes(k)).sort();
   for (const { name, api } of all) eq(names(api), names(all[0].api), name);
+});
+
+test('wasm: decodeMany and encodeMany match the per-line results', () => {
+  const w = all.find((e) => e.name == 'wasm').api;
+  const lines = [[], pts, [[0, 0]], Array.from({ length: 300 }, (_, i) => [i / 7 - 20, -i / 3 + 50.123456])];
+  for (const o of [undefined, 6, { order: 'lnglat' }, { precision: 0 }]) {
+    // The strings always hold lat first; lnglat only flips the tuples.
+    const enc = lines.map((l) => ref.encode(l, typeof o == 'number' ? o : o?.precision ?? 5));
+    const many = w.decodeMany(enc, o);
+    eq([...many.starts], [0, 0, 3, 4, 304], 'starts');
+    const flat = enc.map((s) => [...w.decodeFlat(s, o)]).flat();
+    near([...many.coords], flat, 1e-12, 'coords');
+    eq(w.encodeMany(lines.map((l) => (o?.order ? l.map(([a, b]) => [b, a]) : l)), o), enc, 'encodeMany');
+    eq(w.encodeMany(many, o), enc, 'encodeMany from { coords, starts }');
+  }
+  // A bad line: strict mode throws, lenient falls back to the JS path.
+  throws(() => w.decodeMany([google, google.slice(0, -2)]), 'truncated');
+  eq(w.decodeMany([google, 'a!'], { strict: false }).starts.length, 3);
+  throws(() => w.encodeMany([pts, [[NaN, 1]]]), 'coordinate');
+  throws(() => w.decodeMany('abc'), 'input');
+  eq(w.decodeMany([]).coords.length, 0);
+  eq(w.encodeMany([]), []);
 });
 
 test('wasm: initSync after init is a no-op, and works on its own', async () => {
