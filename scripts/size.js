@@ -5,7 +5,7 @@
 // same way for the competitors in the benchmark repo (bench/size.js there).
 import { build } from 'esbuild';
 import { gzipSync } from 'node:zlib';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -59,6 +59,12 @@ if (import.meta.url == `file:///${process.argv[1].replace(/\\/g, '/').replace(/^
     if (!ok) over++;
     rows.push({ name: e.name, ...s, budget: e.budget, ok });
   }
+  // The size badge in the README: the default web entry, gzipped.
+  const web = rows.find((r) => r.name.startsWith('default / web'));
+  if (web) {
+    mkdirSync(`${root}assets/badges`, { recursive: true });
+    writeFileSync(`${root}assets/badges/size.svg`, badge('gzipped', `${(web.gzip / 1024).toFixed(1)} KB`, '#007ec6'));
+  }
   if (json) console.log(JSON.stringify(rows, null, 2));
   else {
     console.log('| entry | minified | gzipped | budget |\n|---|--:|--:|--:|');
@@ -68,4 +74,11 @@ if (import.meta.url == `file:///${process.argv[1].replace(/\\/g, '/').replace(/^
     console.error(`${over} entr${over == 1 ? 'y is' : 'ies are'} over budget`);
     process.exitCode = 1;
   }
+}
+
+// A badge in shields.io's flat style, so it sits in the same row as theirs.
+function badge(label, value, color) {
+  const w = (t) => Math.round(t.length * 6.2 + 10), lw = w(label), vw = w(value), total = lw + vw;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="20" role="img" aria-label="${label}: ${value}"><title>${label}: ${value}</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="${total}" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="${lw}" height="20" fill="#555"/><rect x="${lw}" width="${vw}" height="20" fill="${color}"/><rect width="${total}" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11"><text x="${lw / 2}" y="15" fill="#010101" fill-opacity=".3">${label}</text><text x="${lw / 2}" y="14">${label}</text><text x="${lw + vw / 2}" y="15" fill="#010101" fill-opacity=".3">${value}</text><text x="${lw + vw / 2}" y="14">${value}</text></g></svg>
+`;
 }
