@@ -1,16 +1,17 @@
 // OpenLayers: a faster drop-in for ol/format/Polyline.
 //
-//   import Polyline from '@duoquote/polytini/openlayers'; // instead of 'ol/format/Polyline.js'
-//   const format = new Polyline({ factor: 1e6 });
-//   const line = format.readGeometry(encoded, { featureProjection: 'EPSG:3857' });
-//   const str = format.writeGeometry(line, { featureProjection: 'EPSG:3857' });
+//   import Polyline from 'ol/format/Polyline.js';
+//   import LineString from 'ol/geom/LineString.js';
+//   import { createPolylineFormat } from '@duoquote/polytini/openlayers';
+//   const FastPolyline = createPolylineFormat({ Polyline, LineString });
+//   const format = new FastPolyline({ factor: 1e6 });
 //
-// It subclasses ol's own Polyline format and replaces only the two text-level
-// methods, readGeometryFromText and writeGeometryText. Everything else is
-// ol's: the constructor options (factor, geometryLayout), projections,
-// readFeature, readFeatures, writeFeature, writeFeatures and the `decimals`
-// write option. This is the one polytini subpath with a runtime import of
-// the map library, because it extends ol's class.
+// The factory takes ol's classes from you instead of importing ol, so
+// polytini has no runtime dependency on it. The class it returns extends
+// the Polyline class you pass and replaces only the two text-level methods,
+// readGeometryFromText and writeGeometryText. Everything else is ol's: the
+// constructor options (factor, geometryLayout), projections, readFeature,
+// readFeatures, writeFeature, writeFeatures and the `decimals` write option.
 //
 // The output is the same as ol's for every input, with one exception: ol's
 // writeGeometry flips XY and writes the deltas into the geometry's own flat
@@ -38,12 +39,9 @@
 //   exactly what ol gives, odd results included: a NaN for a missing value,
 //   and 32-bit wrap-around for very large values.
 /* @ts-self-types="../types/openlayers.d.ts" */
-import OlPolyline, { encodeDeltas } from 'ol/format/Polyline.js';
-import LineString from 'ol/geom/LineString.js';
-import { getStrideForLayout } from 'ol/geom/SimpleGeometry.js';
-import { transformGeometryWithOptions } from 'ol/format/Feature.js';
-import { flipXY } from 'ol/geom/flat/flip.js';
 import { chars, LIMIT } from './core.js';
+
+const STRIDE = { XY: 2, XYZ: 3, XYM: 3, XYZM: 4 };
 
 // Encoded characters for zigzag values below 1024.
 const CHARS = [];
@@ -111,29 +109,64 @@ function encodeFlat(flat, stride, f) {
   return s;
 }
 
-/** Drop-in for ol/format/Polyline: same options and output, faster, and it never changes the geometry it writes. */
-export default class Polyline extends OlPolyline {
-  constructor(options) {
-    super(options);
-    options = options || {};
-    // ol keeps these as private fields; keep our own copies.
-    this.polyFactor_ = options.factor ? options.factor : 1e5;
-    this.polyLayout_ = options.geometryLayout ? options.geometryLayout : 'XY';
-  }
+// The projection step of ol's format, done with the geometry's own
+// transform() so nothing from ol has to be imported. Returns null when ol
+// has to do it itself: tile-pixel projections, which ol handles specially.
+const projections = (options, write) => {
+  const fp = options?.featureProjection, dp = options?.dataProjection;
+  const tile = (p) => typeof p == 'object' && p?.getUnits?.() == 'tile-pixels';
+  if (tile(fp) || tile(dp)) return null;
+  // Equal codes need nothing. Different but equivalent projections
+  // (EPSG:3857 and EPSG:900913) go through transform(), which copies the
+  // values unchanged, so the numbers are the same as ol's.
+  return fp && dp && fp !== dp ? (write ? [fp, dp] : [dp, fp]) : [];
+};
 
-  readGeometryFromText(text, options) {
-    const layout = this.polyLayout_, flat = decodeFlat(text, getStrideForLayout(layout), this.polyFactor_);
-    if (!flat) return super.readGeometryFromText(text, options);
-    return transformGeometryWithOptions(new LineString(flat, layout), false, this.adaptOptions(options));
+/**
+ * Makes the drop-in class from ol's own. Pass `{ Polyline, LineString }`
+ * (ol/format/Polyline.js and ol/geom/LineString.js), or the `ol` namespace
+ * of the full build.
+ */
+export function createPolylineFormat(ol) {
+  const Base = ol?.Polyline ?? ol?.format?.Polyline, LineString = ol?.LineString ?? ol?.geom?.LineString;
+  if (typeof Base != 'function' || typeof LineString != 'function') {
+    throw new TypeError('createPolylineFormat needs { Polyline, LineString } from ol');
   }
+  /** Drop-in for ol/format/Polyline: same options and output, faster, and it never changes the geometry it writes. */
+  return class Polyline extends Base {
+    constructor(options) {
+      super(options);
+      options = options || {};
+      // ol keeps these as private fields; keep our own copies.
+      this.polyFactor_ = options.factor ? options.factor : 1e5;
+      this.polyLayout_ = options.geometryLayout ? options.geometryLayout : 'XY';
+    }
 
-  writeGeometryText(geometry, options) {
-    geometry = transformGeometryWithOptions(geometry, true, this.adaptOptions(options));
-    const flat = geometry.getFlatCoordinates(), stride = geometry.getStride(), f = this.polyFactor_;
-    // flipXY without a destination writes a new array, so ol's encodeDeltas
-    // only changes that copy.
-    return encodeFlat(flat, stride, f) ?? encodeDeltas(flipXY(flat, 0, flat.length, stride), stride, f);
-  }
+    readGeometryFromText(text, options) {
+      options = this.adaptOptions(options);
+      const layout = this.polyLayout_, p = projections(options, false);
+      const flat = p && decodeFlat(text, STRIDE[layout], this.polyFactor_);
+      if (!flat) return super.readGeometryFromText(text, options);
+      const geometry = new LineString(flat, layout);
+      return p.length ? geometry.transform(p[0], p[1]) : geometry;
+    }
+
+    writeGeometryText(geometry, options) {
+      options = this.adaptOptions(options);
+      const p = projections(options, true);
+      let flat = geometry.getFlatCoordinates();
+      const stride = geometry.getStride(), f = this.polyFactor_;
+      if (p) {
+        if (p.length) flat = geometry.clone().transform(p[0], p[1]).getFlatCoordinates();
+        // ol's `decimals`: round every value to that many places first.
+        if (options?.decimals !== undefined) {
+          const power = Math.pow(10, options.decimals);
+          flat = flat.map((c) => Math.round(c * power) / power);
+        }
+      }
+      // Anything else goes to ol's own writer, on a copy: it writes the
+      // deltas into the geometry it encodes.
+      return (p && encodeFlat(flat, stride, f)) ?? super.writeGeometryText(geometry.clone(), options);
+    }
+  };
 }
-
-export { Polyline };

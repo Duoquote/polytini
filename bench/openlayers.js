@@ -19,9 +19,8 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const root = new URL('../../../', import.meta.url);
-const { Bench } = await import(new URL('node_modules/tinybench/dist/index.js', root).href);
-const { benchFixtures } = await import(new URL('src/fixtures.js', root).href);
+const { Bench } = await import('tinybench');
+const { benchFixtures } = await import(new URL('../test/bench-fixtures.js', import.meta.url).href);
 
 const args = globalThis.Deno ? Deno.args : process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -40,7 +39,11 @@ const MIN_POINTS_PER_CALL = 20_000;
 
 const libraries = {
   'ol/format/Polyline': async () => (await import('ol/format/Polyline.js')).default,
-  'polytini/openlayers': async () => (await import(new URL('../src/openlayers.js', import.meta.url).href)).default,
+  'polytini/openlayers': async () => {
+    const { createPolylineFormat } = await import(new URL('../src/openlayers.js', import.meta.url).href);
+    const [{ default: Polyline }, { default: LineString }] = await Promise.all([import('ol/format/Polyline.js'), import('ol/geom/LineString.js')]);
+    return createPolylineFormat({ Polyline, LineString });
+  },
 };
 
 async function benchmark(name) {

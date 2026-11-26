@@ -169,43 +169,8 @@
     "test:deno": "deno run --allow-read --allow-env --allow-run --allow-write test/run.js",
     "test:browser": "node test/browser.js",
     "size": "node scripts/size.js",
-    "smoke": "node test/smoke.js"
-  },
-  "peerDependencies": {
-    "@turf/helpers": ">=7",
-    "leaflet": ">=1.9",
-    "ol": ">=9",
-    "maplibre-gl": ">=4",
-    "mapbox-gl": ">=3.5",
-    "@deck.gl/layers": ">=9",
-    "@types/google.maps": ">=3",
-    "@types/geojson": ">=7946"
-  },
-  "peerDependenciesMeta": {
-    "@turf/helpers": {
-      "optional": true
-    },
-    "leaflet": {
-      "optional": true
-    },
-    "ol": {
-      "optional": true
-    },
-    "maplibre-gl": {
-      "optional": true
-    },
-    "mapbox-gl": {
-      "optional": true
-    },
-    "@deck.gl/layers": {
-      "optional": true
-    },
-    "@types/google.maps": {
-      "optional": true
-    },
-    "@types/geojson": {
-      "optional": true
-    }
+    "smoke": "node test/smoke.js",
+    "check:deps": "node scripts/check-deps.js"
   },
   "devDependencies": {
     "@deck.gl/core": "^9.4.2",
@@ -228,6 +193,7 @@
     "maplibre-gl": "^6.19.0",
     "ol": "^10.11.0",
     "playwright-core": "^1.65.1",
+    "tinybench": "^6.2.5",
     "typescript": "^7.0.2",
     "wabt": "^1.0.39"
   }

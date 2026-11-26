@@ -6,9 +6,11 @@ import OlPolyline from 'ol/format/Polyline.js';
 import LineString from 'ol/geom/LineString.js';
 import Point from 'ol/geom/Point.js';
 import Feature from 'ol/Feature.js';
-import Polyline from '../src/openlayers.js';
+import { createPolylineFormat } from '../src/openlayers.js';
 import { encode, decode } from '../src/web.js';
+import { benchFixtures } from './bench-fixtures.js';
 
+const Polyline = createPolylineFormat({ Polyline: OlPolyline, LineString });
 const google = '_p~iF~ps|U_ulLnnqC_mqNvxq`@';
 const layouts = ['XY', 'XYZ', 'XYM', 'XYZM'];
 const strideOf = { XY: 2, XYZ: 3, XYM: 3, XYZM: 4 };
@@ -41,14 +43,8 @@ function same(text, options = {}, readOptions) {
   return b;
 }
 
-// The benchmark repo's fixtures, when this runs inside it.
-let fixtures = null;
-try {
-  const mod = await import(new URL('../../../src/fixtures.js', import.meta.url).href);
-  fixtures = { 5: mod.benchFixtures(5), 6: mod.benchFixtures(6) };
-} catch {
-  console.log('openlayers.test.js: polyline-benchmark fixtures not found, skipping the fixture tests (generated lines still run)');
-}
+// The benchmark inputs, the same ones polyline-benchmark times.
+const fixtures = { 5: benchFixtures(5), 6: benchFixtures(6) };
 
 if (fixtures) {
   for (const p of [5, 6]) {
@@ -219,4 +215,16 @@ test('OpenLayers: polytini and the drop-in agree on valid input', () => {
   const pts = decode(google);
   const g = new Polyline({ factor: 1e6 }).readGeometry(encode(pts, 6));
   eq(g.getCoordinates(), pts.map(([lat, lng]) => [lng, lat]));
+});
+
+test('openlayers: the factory takes the full-build namespace and rejects anything else', () => {
+  const P = createPolylineFormat({ format: { Polyline: OlPolyline }, geom: { LineString } });
+  eq(new P().writeGeometry(new P().readGeometry(google)), google);
+  let threw = false;
+  try {
+    createPolylineFormat({});
+  } catch (e) {
+    threw = e instanceof TypeError;
+  }
+  ok(threw, 'TypeError without the classes');
 });

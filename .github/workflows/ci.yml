@@ -64,6 +64,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: No runtime dependencies
+        run: node scripts/check-deps.js
       - name: Size budgets
         run: node scripts/size.js
       - name: The committed .wasm matches the .wat
