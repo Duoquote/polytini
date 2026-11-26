@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Duoquote/polytini/main/assets/polytini-dark.png">
+    <img src="https://raw.githubusercontent.com/Duoquote/polytini/main/assets/polytini-light.png" width="160" alt="polytini logo: a small bird sitting on a line">
+  </picture>
+</p>
+
 # polytini
 
 polytini encodes and decodes [Google encoded polylines](https://developers.google.com/maps/documentation/utilities/polylinealgorithm), the strings you get back for route geometry from Google Maps, OSRM, Valhalla, GraphHopper and Mapbox. It's strict by default, so a cut-off or corrupted string throws instead of drawing a wrong line. Node, Bun, Deno and browsers each get the code path that measured fastest there.
