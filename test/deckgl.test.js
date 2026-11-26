@@ -3,6 +3,7 @@
 // buffers the same way the layers do, and need no GPU), real layer
 // instances, and a real Deck in headless Chrome when a Chrome is found.
 import { test, eq, ok, throws, near } from './lib.js';
+import { realWorldLines } from './bench-fixtures.js';
 import process from 'node:process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -23,13 +24,7 @@ const { default: PathTesselator } = await import(new URL('./path-layer/path-tess
 const { default: PolygonTesselator } = await import(new URL('./solid-polygon-layer/polygon-tesselator.js', layersDist).href);
 
 // The benchmark repo's real-world lines, when this runs inside it.
-let realWorld = null;
-try {
-  const mod = await import(new URL('../../../src/fixtures.js', import.meta.url).href);
-  realWorld = mod.realWorldLines();
-} catch {
-  console.log('deckgl.test.js: polyline-benchmark fixtures not found, skipping the real-world line test');
-}
+const realWorld = realWorldLines();
 
 test('deckgl: binaryPaths has deck.gl\'s binary shape, [lng, lat] per vertex', () => {
   const lines = [google, '', second];

@@ -24,9 +24,8 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const root = new URL('../../../', import.meta.url);
-const { Bench } = await import(new URL('node_modules/tinybench/dist/index.js', root).href);
-const { realWorldLines, gpsTrack, ANCHORS } = await import(new URL('src/fixtures.js', root).href);
+const { Bench } = await import('tinybench');
+const { realWorldLines, gpsTrack, ANCHORS } = await import(new URL('../test/bench-fixtures.js', import.meta.url).href);
 const { binaryPaths } = await import(new URL('../src/deckgl.js', import.meta.url).href);
 const { decode, encode } = await import(new URL('../src/web.js', import.meta.url).href);
 

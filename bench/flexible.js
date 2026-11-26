@@ -18,9 +18,8 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-const root = new URL('../../../', import.meta.url);
-const { Bench } = await import(new URL('node_modules/tinybench/dist/index.js', root).href);
-const { benchFixtures, rng } = await import(new URL('src/fixtures.js', root).href);
+const { Bench } = await import('tinybench');
+const { benchFixtures, rng } = await import(new URL('../test/bench-fixtures.js', import.meta.url).href);
 
 const args = globalThis.Deno ? Deno.args : process.argv.slice(2);
 const opt = (name, fallback) => {
