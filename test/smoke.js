@@ -10,10 +10,13 @@ import { mkdtempSync, writeFileSync, rmSync, readdirSync, mkdirSync, readFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const pkgDir = fileURLToPath(new URL('..', import.meta.url));
 const tsc = join(pkgDir, 'node_modules', 'typescript', 'bin', 'tsc');
-const esbuild = join(pkgDir, 'node_modules', 'esbuild', 'bin', 'esbuild');
+// esbuild's bin/esbuild is a JS shim on Windows but the native binary on Linux,
+// so `node bin/esbuild` only works on Windows. The JS API works everywhere.
+const esbuild = createRequire(join(pkgDir, 'package.json'))('esbuild');
 const win = process.platform == 'win32';
 const want = process.argv.slice(2);
 const s = '_p~iF~ps|U_ulLnnqC_mqNvxq`@';
@@ -127,7 +130,10 @@ function checks(name, dir, { bin, node = 'node', types = true, resolveFrom = dir
     run(`node "${tsc}" -p tsconfig.bundler.json`, resolveFrom);
     lines.push('types ok (node16, bundler)');
   }
-  run(`node "${esbuild}" browser.js --bundle --format=esm --platform=browser --outfile=out.js --log-level=warning`, dir);
+  esbuild.buildSync({
+    absWorkingDir: dir, entryPoints: ['browser.js'], bundle: true, format: 'esm',
+    platform: 'browser', outfile: 'out.js', logLevel: 'warning',
+  });
   const bundled = readFileSync(join(dir, 'out.js'), 'utf8');
   if (/node:buffer|ucs2Write/.test(bundled)) throw new Error(`${name}: browser bundle pulled in the node entry`);
   lines.push('browser bundle ok (web entry, no Node globals)');
