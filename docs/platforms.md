@@ -38,6 +38,25 @@ What made the difference, from profiling each step on Node, Bun and Deno:
 - Deno has a global `Buffer` whose `latin1Slice` is a JavaScript polyfill; reading strings out through it made encoding twice as slow there, so the glue uses `TextDecoder` on Deno.
 - Batch calls: `decodeMany` and `encodeMany` cross into WASM once for any number of lines.
 
+In the benchmark, WASM's speed divided by the JS entry's for the same call, in the same run (above 1.00 means WASM was faster), before these changes (26 November) and after (27 November):
+
+| | Bun 1.4.3 | Node 24 | Deno 2.5 | Chrome 157 |
+|---|--:|--:|--:|--:|
+| `decodeFlat`, 1,000 points | 0.91 to 1.01 | 0.87 to 0.78 | 0.55 to 0.93 | 1.09 to 1.24 |
+| `decodeFlat`, 100,000 points | 1.05 to 1.14 | 1.08 to 1.02 | 0.47 to 1.16 | 1.51 to 1.28 |
+| `encodeFlat`, 1,000 points | 0.64 to 0.93 | 0.99 to 1.41 | 0.43 to 1.25 | 0.88 to 1.19 |
+| `encodeFlat`, 100,000 points | 0.56 to 0.66 | 0.88 to 1.29 | 0.35 to 0.96 | 1.03 to 1.02 |
+| `encode` (tuples), 1,000 points | 0.59 to 0.88 | 0.92 to 1.23 | 0.44 to 1.01 | 0.77 to 0.95 |
+
+And the batch calls, on the 1000 real-world lines, against the JS way to get the same output:
+
+| | Bun 1.4.3 | Node 24 | Deno 2.5 | Chrome 157 |
+|---|--:|--:|--:|--:|
+| `decodeMany` vs deck.gl `binaryPaths` (JS) | 1.36 | 1.70 | 2.70 | 0.93 |
+| `encodeMany` vs `encode` per line | 0.61 | 0.79 | 0.79 | 0.75 |
+
+Cells moved about 30% between rounds, so read the small differences as even. The clear results: the biggest gains were in Deno, where the old build was 2 to 3 times slower than JS; `decodeMany` is the one call where WASM wins by a lot, except in Chrome; and `encodeMany` loses everywhere, because making one string per line is the expensive part and it doesn't get cheaper in a batch. The full tables are in the benchmark's [results](https://github.com/Duoquote/polyline-benchmark/blob/main/docs/results.md).
+
 What didn't: a Rust version that reads 8 bytes at a time with 64-bit tricks (SWAR) was 2.7 KB and 10 to 40% slower than the byte loop. Each value starts where the last one ended, and typical GPS values are 1 to 3 characters, so a byte loop with a well-predicted branch is already about 3 cycles per character. SIMD runs into the same chain, so I didn't ship it.
 
 ## Size
