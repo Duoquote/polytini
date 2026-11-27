@@ -13,24 +13,38 @@ const external = ['node:*', 'ol', 'ol/*', 'maplibre-gl', 'mapbox-gl', '@deck.gl/
 
 // Budgets in gzipped bytes, about 4% over the size when they were set, so
 // CI catches real growth. Raise them on purpose, in the same commit.
+//
+// The first rows are what an app ships when it imports one or two functions:
+// bundlers for the browser resolve the bare import to src/browser.js. They
+// catch tree-shaking regressions, like a module-level call that pins the
+// encoder into a decode-only bundle. The rest are whole entries.
+const imports = (from, names) => `export { ${names} } from './src/${from}.js'`;
 export const entries = [
+  { name: 'import { decode }', code: imports('browser', 'decode'), platform: 'browser', budget: 1110 },
+  { name: 'import { encode }', code: imports('browser', 'encode'), platform: 'browser', budget: 1470 },
+  { name: 'import { decode, encode }', code: imports('browser', 'decode, encode'), platform: 'browser', budget: 1950 },
+  { name: 'import { decodeLatLng }', code: imports('browser', 'decodeLatLng'), platform: 'browser', budget: 1190 },
+  { name: 'import { toGeoJSON }', code: imports('browser', 'toGeoJSON'), platform: 'browser', budget: 1190 },
+  { name: '/web, import { encode }', code: imports('web', 'encode'), platform: 'browser', budget: 1280 },
+  { name: '/web, import { decode, encode }', code: imports('web', 'decode, encode'), platform: 'browser', budget: 1770 },
+  { name: 'node, import { decode }', code: imports('node', 'decode'), platform: 'node', budget: 1570 },
+  { name: 'node, import { encode }', code: imports('node', 'encode'), platform: 'node', budget: 1460 },
   { name: 'default / web (everything)', file: 'src/web.js', platform: 'browser', budget: 2050 },
-  { name: 'web, encode + decode only', code: "export { encode, decode } from './src/web.js'", platform: 'browser', budget: 1830 },
-  { name: 'browser (the "browser" condition)', file: 'src/browser.js', platform: 'browser', budget: 2330 },
-  { name: 'node', file: 'src/node.js', platform: 'node', budget: 2700 },
-  { name: 'bun', file: 'src/bun.js', platform: 'node', budget: 2700 },
-  { name: 'deno', file: 'src/deno.js', platform: 'browser', budget: 2570 },
-  { name: 'wasm (JS glue + inlined .wasm)', file: 'src/wasm.js', platform: 'browser', budget: 6110 },
-  { name: 'leaflet', file: 'src/leaflet.js', platform: 'browser', budget: 2060 },
-  { name: 'turf', file: 'src/turf.js', platform: 'browser', budget: 2320 },
+  { name: 'browser (the "browser" condition)', file: 'src/browser.js', platform: 'browser', budget: 2260 },
+  { name: 'node', file: 'src/node.js', platform: 'node', budget: 2560 },
+  { name: 'bun', file: 'src/bun.js', platform: 'node', budget: 2560 },
+  { name: 'deno', file: 'src/deno.js', platform: 'browser', budget: 2550 },
+  { name: 'wasm (JS glue + inlined .wasm)', file: 'src/wasm.js', platform: 'browser', budget: 5820 },
+  { name: 'leaflet', file: 'src/leaflet.js', platform: 'browser', budget: 1990 },
+  { name: 'turf', file: 'src/turf.js', platform: 'browser', budget: 2250 },
   { name: 'presets', file: 'src/presets.js', platform: 'browser', budget: 300 },
   { name: 'flexible', file: 'src/flexible.js', platform: 'browser', budget: 2120 },
-  { name: 'google', file: 'src/google.js', platform: 'browser', budget: 2070 },
+  { name: 'google', file: 'src/google.js', platform: 'browser', budget: 2000 },
   { name: 'openlayers', file: 'src/openlayers.js', platform: 'browser', budget: 1110 },
-  { name: 'maplibre', file: 'src/maplibre.js', platform: 'browser', budget: 1690 },
-  { name: 'mapbox', file: 'src/mapbox.js', platform: 'browser', budget: 1690 },
-  { name: 'deckgl', file: 'src/deckgl.js', platform: 'browser', budget: 2110 },
-  { name: 'cli', file: 'src/cli.js', platform: 'node', budget: 3990 },
+  { name: 'maplibre', file: 'src/maplibre.js', platform: 'browser', budget: 1610 },
+  { name: 'mapbox', file: 'src/mapbox.js', platform: 'browser', budget: 1610 },
+  { name: 'deckgl', file: 'src/deckgl.js', platform: 'browser', budget: 2030 },
+  { name: 'cli', file: 'src/cli.js', platform: 'node', budget: 3910 },
 ];
 
 export async function measure(e) {
@@ -59,11 +73,12 @@ if (import.meta.url == `file:///${process.argv[1].replace(/\\/g, '/').replace(/^
     if (!ok) over++;
     rows.push({ name: e.name, ...s, budget: e.budget, ok });
   }
-  // The size badge in the README: the default web entry, gzipped.
-  const web = rows.find((r) => r.name.startsWith('default / web'));
-  if (web) {
+  // The size badge in the README: decode only, and the whole browser entry,
+  // gzipped.
+  const dec = rows.find((r) => r.name == 'import { decode }'), all = rows.find((r) => r.name.startsWith('browser '));
+  if (dec && all) {
     mkdirSync(`${root}assets/badges`, { recursive: true });
-    writeFileSync(`${root}assets/badges/size.svg`, badge('gzipped', `${(web.gzip / 1024).toFixed(1)} KB`, '#007ec6'));
+    writeFileSync(`${root}assets/badges/size.svg`, badge('gzipped', `decode ${dec.gzip} B, all ${(all.gzip / 1024).toFixed(1)} KB`, '#007ec6'));
   }
   if (json) console.log(JSON.stringify(rows, null, 2));
   else {
