@@ -126,7 +126,9 @@ JSON, GeoJSON, CSV and plain lines; works with `bunx`, `pnpm dlx`, `yarn dlx` an
 
 ## More
 
-[Tests and coverage](docs/testing.md), [releasing](RELEASING.md), and the [benchmark](https://github.com/Duoquote/polyline-benchmark) with every table and chart.
+[Tests and coverage](docs/testing.md), [contributing](CONTRIBUTING.md), [releasing](RELEASING.md), and the [benchmark](https://github.com/Duoquote/polyline-benchmark) with every table and chart.
+
+For AI agents: [llms.txt](llms.txt) has the API, the import paths and the mistakes to avoid. [CONTRIBUTING.md](CONTRIBUTING.md#for-ai-agents) says how to report a bug or send a PR.
 
 ## License
 
