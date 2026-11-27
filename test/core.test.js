@@ -295,6 +295,28 @@ test('wasm: decodeMany and encodeMany match the per-line results', () => {
   eq(w.encodeMany([]), []);
 });
 
+// A running sum past 2^31: precision 8 and up does that with real
+// coordinates (30 degrees is 3e9 at 1e8). The JS paths add in doubles; the
+// WASM modules used to add in 32 bits and wrapped.
+test('a running sum past 2^31 decodes the same on every entry', () => {
+  const zig = (v) => {
+    v = v < 0 ? ~(v << 1) : v << 1;
+    let s = '';
+    for (; v >= 32; v >>>= 5) s += String.fromCharCode((32 | (v & 31)) + 63);
+    return s + String.fromCharCode(v + 63);
+  };
+  for (const n of [5, 40, 200]) {
+    // n steps of 5.3 degrees up in lat and down in lng, at precision 8.
+    const str = (zig(2 ** 29 - 1) + zig(-(2 ** 29 - 1))).repeat(n), want = ref.decode(str, 8);
+    eq(want[n - 1], [(n * (2 ** 29 - 1)) / 1e8, (-n * (2 ** 29 - 1)) / 1e8]);
+    for (const { name, api } of all) {
+      eq(api.decode(str, 8), want, `${name} decode, ${n} points`);
+      eq([...api.decodeFlat(str, 8)], want.flat(), `${name} decodeFlat, ${n} points`);
+      if (api.decodeMany) eq([...api.decodeMany([str, str], 8).coords], [...want.flat(), ...want.flat()], `${name} decodeMany, ${n} points`);
+    }
+  }
+});
+
 test('wasm: initSync after init is a no-op, and works on its own', async () => {
   const wasm = all.find((e) => e.name == 'wasm').api;
   wasm.initSync();
