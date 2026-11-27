@@ -52,7 +52,7 @@ function load(str, len) {
 // Two functions, so a bundle that only decodes to tuples drops the other.
 // The locals are declared in the same order in both, so the minifier gives
 // them the same names and gzip finds the second loop in the first.
-function big(str, f) {
+function big(str, f, sw) {
   const len = str.length, t = load(str, len);
   if (t < 0) return null;
   const out = Array(t >> 1), b = u8;
@@ -81,11 +81,11 @@ function big(str, f) {
   return bad & ~63 || i != len ? null : out;
 }
 
-function bigFlat(str, f) {
+function bigFlat(str, f, sw) {
   const len = str.length, t = load(str, len);
   if (t < 0) return null;
   const out = new Float64Array(t & ~1), b = u8;
-  let i = 0, n = 0, lat = 0, lng = 0, bad = 0, c, v, s, a = +st.swap;
+  let i = 0, n = 0, lat = 0, lng = 0, bad = 0, c, v, s, a = +sw;
   while (i < len) {
     c = b[i++] - 63;
     bad |= c;
@@ -114,7 +114,7 @@ function bigFlat(str, f) {
 
 // Under 64 characters the copy costs more than it saves.
 const pick = (str, f) => (str.length < 64 ? decodeLoop(str, f) : big(str, f));
-const pickFlat = (str, f) => (str.length < 64 ? flatLoop(str, f) : bigFlat(str, f));
+const pickFlat = (str, f, sw) => (str.length < 64 ? flatLoop(str, f, sw) : bigFlat(str, f, sw));
 
 // The 2D fast loop for long lines, the core's encodeLoop with bytes instead
 // of strings. Returns null for slowEncode.

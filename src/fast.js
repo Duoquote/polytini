@@ -27,7 +27,7 @@
 // - Everything is a module-level function, so a bundle keeps only what it
 //   imports: decoding alone doesn't bring the encoder or the flat decoder.
 import { Buffer } from 'node:buffer';
-import { st, LIMIT, decodeWith, flatWith, decodeLoop, flatLoop, encodeWith } from './core.js';
+import { opts, st, LIMIT, slowEncode, decodeWith, flatWith, decodeLoop, flatLoop } from './core.js';
 
 // Scratch memory is reused between calls up to this size. Bigger inputs get
 // a temporary buffer, so one huge line doesn't pin megabytes for good.
@@ -77,7 +77,7 @@ function load(str, len) {
 // null for slowDecode. Tuples and flat output are separate loops here: one
 // shared loop with a per-point branch measured about 20% slower on
 // JavaScriptCore at 10,000 points.
-function big(str, f) {
+function big(str, f, sw) {
   const len = str.length, want = load(str, len) >> 1;
   if (want < 0) return null;
   const b = u8, out = want > grow ? [] : Array(want);
@@ -107,11 +107,11 @@ function big(str, f) {
   return bad & ~63 || i != len ? null : out;
 }
 
-function bigFlat(str, f) {
+function bigFlat(str, f, sw) {
   const len = str.length, want = load(str, len);
   if (want < 0) return null;
   const b = u8, out = new Float64Array(want & ~1);
-  let i = 0, n = 0, lat = 0, lng = 0, bad = 0, c, v, s, a = +st.swap;
+  let i = 0, n = 0, lat = 0, lng = 0, bad = 0, c, v, s, a = +sw;
   while (i < len) {
     c = b[i++] - 63;
     bad |= c;
@@ -181,9 +181,14 @@ function encodeLoop(src, f, a, flat) {
 
 // Under 64 characters the copy costs more than it saves.
 const pick = (str, f) => (str.length < 64 ? decodeLoop(str, f) : big(str, f));
-const pickFlat = (str, f) => (str.length < 64 ? flatLoop(str, f) : bigFlat(str, f));
+const pickFlat = (str, f, sw) => (str.length < 64 ? flatLoop(str, f, sw) : bigFlat(str, f, sw));
 
 export const decode = (str, o) => decodeWith(str, o, pick);
 export const decodeFlat = (str, o) => flatWith(str, o, pickFlat);
-export const encode = (src, o) => encodeWith(src, o, 0, encodeLoop);
-export const encodeFlat = (src, o) => encodeWith(src, o, 1, encodeLoop);
+const encodeWith = (src, o, flat) => {
+  const f = opts(o);
+  return (st.dims == 2 && f <= 1e6 && (flat ? src != null && !(src.length % 2) : Array.isArray(src)) ? encodeLoop(src, f, +st.swap, flat) : null) ?? slowEncode(src, f, flat);
+};
+
+export const encode = (src, o) => encodeWith(src, o, 0);
+export const encodeFlat = (src, o) => encodeWith(src, o, 1);

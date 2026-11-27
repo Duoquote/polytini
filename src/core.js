@@ -148,7 +148,7 @@ export const decodeWith = (str, o, loop) => {
 
 // Written like decodeWith, so gzip finds most of it in that.
 export const flatWith = (str, o, loop) => {
-  const f = opts(o), out = st.dims == 2 && typeof str == 'string' && loop(str, f);
+  const f = opts(o), out = st.dims == 2 && typeof str == 'string' && loop(str, f, st.swap);
   return out || slowDecode(str, f, 1);
 };
 
@@ -162,7 +162,7 @@ export const decodeFlat = (str, o) => flatWith(str, o, flatLoop);
 // self-contained functions because V8 optimized them better that way: with
 // the option and type checks in the same function, 10 point lines decoded
 // about 15% slower.
-export function decodeLoop(str, f) {
+export function decodeLoop(str, f, sw) {
   const len = str.length, out = len < 64 ? [] : Array(len >> 1);
   let i = 0, n = 0, lat = 0, lng = 0, bad = 0, c, v, s;
   // One value is one or more 5-bit chunks. `bad` collects every character
@@ -195,11 +195,12 @@ export function decodeLoop(str, f) {
   return out;
 }
 
-export function flatLoop(str, f) {
-  // Declared in the same order as in decodeLoop, so the minifier gives both
-  // loops the same names and gzip finds the second one in the first.
+// The same parameters, the same locals in the same order as decodeLoop, and
+// no names from outside, so esbuild and terser both name the two loops
+// alike and gzip finds the second one in the first.
+export function flatLoop(str, f, sw) {
   const len = str.length;
-  let out, i = 0, n = 0, lat = 0, lng = 0, bad = 0, c, v, s, a = +st.swap;
+  let out, i = 0, n = 0, lat = 0, lng = 0, bad = 0, c, v, s, a = +sw;
   // Every value ends with exactly one character below code 95.
   for (; i < len; i++) n += (str.charCodeAt(i) - 95) >>> 31;
   out = new Float64Array(n & ~1);
@@ -241,20 +242,21 @@ export function chars(z) {
   return s + String.fromCharCode(z + 63);
 }
 
-// `loop` is the 2D fast loop: encodeLoop here, a byte loop in text.js.
-export const encodeWith = (src, o, flat, loop) => {
+// encodeLoop called by name: terser then inlines both into encode and
+// drops the flat branch of a bundle that never encodes flat arrays.
+const encodeWith = (src, o, flat) => {
   const f = opts(o);
-  return (st.dims == 2 && f <= 1e6 && (flat ? src != null && !(src.length % 2) : Array.isArray(src)) ? loop(src, f, +st.swap, flat) : null) ?? slowEncode(src, f, flat);
+  return (st.dims == 2 && f <= 1e6 && (flat ? src != null && !(src.length % 2) : Array.isArray(src)) ? encodeLoop(src, f, +st.swap, flat) : null) ?? slowEncode(src, f, flat);
 };
 
 /** Encodes [lat, lng] tuples, or objects with lat and lng. */
-export const encode = (points, o) => encodeWith(points, o, 0, encodeLoop);
+export const encode = (points, o) => encodeWith(points, o, 0);
 
 /** Encodes a flat array of numbers: [lat0, lng0, lat1, lng1, ...]. */
-export const encodeFlat = (values, o) => encodeWith(values, o, 1, encodeLoop);
+export const encodeFlat = (values, o) => encodeWith(values, o, 1);
 
 // The 2D fast loop, or null when the input needs slowEncode.
-export function encodeLoop(src, f, a, flat) {
+function encodeLoop(src, f, a, flat) {
   const n = flat ? src.length >> 1 : src.length;
   let s = '', i = 0, la = 0, lb = 0, x, y, p, q, z, pt;
   try {
