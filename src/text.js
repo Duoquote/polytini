@@ -13,14 +13,14 @@
 //   lines of a few hundred points slower than the core's string building, so
 //   it starts at 512 points. Both the cost and the best decoder depend on the
 //   runtime, so an entry can change them (tune below; deno.js does).
-import { opts, st, LIMIT, slowDecode, slowEncode, decodeLoop, flip, encode as coreEncode, encodeFlat as coreEncodeFlat } from './core.js';
+import { st, LIMIT, decodeWith, flatWith, decodeLoop, flatLoop, encodeWith, encodeLoop } from './core.js';
 
-const te = new TextEncoder();
+const te = /* @__PURE__ */ new TextEncoder();
 // The decoder that makes the string, and the number of points encode starts
 // using it at. These are the browser entry's: in Chrome 157 a UTF-8 decoder
 // was 5 to 6% slower than 'latin1' from 10,000 points up, and starting at
 // fewer points made the real-world lines 13% slower.
-let td = new TextDecoder('latin1'), min = 512;
+let td = /* @__PURE__ */ new TextDecoder('latin1'), min = 512;
 
 /**
  * Sets the decoder and the switch point for every encode after it. The bytes
@@ -33,17 +33,29 @@ export const tune = (decoder, points) => {
   min = points;
 };
 // Reused up to 1 MB, like the Buffer paths.
-let kept = new Uint8Array(1 << 14);
+let kept = /* @__PURE__ */ new Uint8Array(1 << 14), u8;
 const scratch = (n) => (n <= kept.length ? kept : n <= 1 << 20 ? (kept = new Uint8Array(n)) : new Uint8Array(n));
 
-function big(str, f, sw, flat) {
-  const len = str.length, b = scratch(len + 8);
-  if (te.encodeInto(str, b).written != len) return null;
+// Copies str into scratch as bytes, points u8 at it, and returns the number
+// of values, or -1 when the string isn't ASCII.
+function load(str, len) {
+  const b = (u8 = scratch(len + 8));
+  if (te.encodeInto(str, b).written != len) return -1;
   // '?' padding: a truncated string stops inside the buffer, past len.
   b[len] = b[len + 1] = 63;
   let t = 0;
   for (let k = 0; k < len; k++) t += (b[k] - 95) >>> 31;
-  const out = flat ? new Float64Array(t & ~1) : Array(t >> 1), a = +sw;
+  return t;
+}
+
+// decodeLoop and flatLoop over the bytes, with an exactly sized output.
+// Two functions, so a bundle that only decodes to tuples drops the other.
+// The locals are declared in the same order in both, so the minifier gives
+// them the same names and gzip finds the second loop in the first.
+function big(str, f) {
+  const len = str.length, t = load(str, len);
+  if (t < 0) return null;
+  const out = Array(t >> 1), b = u8;
   let i = 0, n = 0, lat = 0, lng = 0, bad = 0, c, v, s;
   while (i < len) {
     c = b[i++] - 63;
@@ -64,25 +76,52 @@ function big(str, f, sw, flat) {
       v |= (c & 31) << s;
     }
     lng += (v >>> 1) ^ -(v & 1);
-    if (flat) {
-      out[n + a] = lat / f;
-      out[n + 1 - a] = lng / f;
-      n += 2;
-    } else out[n++] = [lat / f, lng / f];
+    out[n++] = [lat / f, lng / f];
   }
   return bad & ~63 || i != len ? null : out;
 }
 
-const decodeWith = (str, o, flat) => {
-  const f = opts(o);
-  if (st.dims != 2 || typeof str != 'string') return slowDecode(str, f, flat);
-  const out = (str.length < 64 ? decodeLoop : big)(str, f, st.swap, flat);
-  return out ? (st.swap && !flat ? flip(out) : out) : slowDecode(str, f, flat);
-};
+function bigFlat(str, f) {
+  const len = str.length, t = load(str, len);
+  if (t < 0) return null;
+  const out = new Float64Array(t & ~1), b = u8;
+  let i = 0, n = 0, lat = 0, lng = 0, bad = 0, c, v, s, a = +st.swap;
+  while (i < len) {
+    c = b[i++] - 63;
+    bad |= c;
+    v = c & 31;
+    for (s = 5; c >= 32; s += 5) {
+      c = b[i++] - 63;
+      bad |= c | (25 - s);
+      v |= (c & 31) << s;
+    }
+    lat += (v >>> 1) ^ -(v & 1);
+    c = b[i++] - 63;
+    bad |= c;
+    v = c & 31;
+    for (s = 5; c >= 32; s += 5) {
+      c = b[i++] - 63;
+      bad |= c | (25 - s);
+      v |= (c & 31) << s;
+    }
+    lng += (v >>> 1) ^ -(v & 1);
+    out[n + a] = lat / f;
+    out[n + 1 - a] = lng / f;
+    n += 2;
+  }
+  return bad & ~63 || i != len ? null : out;
+}
 
-function encodeLoop(src, f, a, flat) {
+// Under 64 characters the copy costs more than it saves.
+const pick = (str, f) => (str.length < 64 ? decodeLoop(str, f) : big(str, f));
+const pickFlat = (str, f) => (str.length < 64 ? flatLoop(str, f) : bigFlat(str, f));
+
+// The 2D fast loop for long lines, the core's encodeLoop with bytes instead
+// of strings. Returns null for slowEncode.
+function bytesLoop(src, f, a, flat) {
+  // In the order of encodeLoop's, for the same reason as above.
   const n = flat ? src.length >> 1 : src.length, b = scratch(n * 14 + 8);
-  let i = 0, k = 0, la = 0, lb = 0, x, y, p, q, z, pt;
+  let i = 0, la = 0, lb = 0, x, y, p, q, z, pt, k = 0;
   try {
     for (; i < n; i++) {
       if (flat) {
@@ -116,14 +155,10 @@ function encodeLoop(src, f, a, flat) {
   return td.decode(b.subarray(0, k));
 }
 
-const encodeWith = (src, o, flat, core) => {
-  // Short lines: the core's string building is faster than a TextDecoder call.
-  if (!(src?.length >= (flat ? 2 * min : min))) return core(src, o);
-  const f = opts(o);
-  return (st.dims == 2 && f <= 1e6 && (flat ? !(src.length % 2) : Array.isArray(src)) ? encodeLoop(src, f, +st.swap, flat) : null) ?? slowEncode(src, f, flat);
-};
+// Short lines: the core's string building is faster than a TextDecoder call.
+const bytes = (src, o, flat) => encodeWith(src, o, flat, src?.length >= (flat ? 2 * min : min) ? bytesLoop : encodeLoop);
 
-export const decode = (str, o) => decodeWith(str, o, 0);
-export const decodeFlat = (str, o) => decodeWith(str, o, 1);
-export const encode = (src, o) => encodeWith(src, o, 0, coreEncode);
-export const encodeFlat = (src, o) => encodeWith(src, o, 1, coreEncodeFlat);
+export const decode = (str, o) => decodeWith(str, o, pick);
+export const decodeFlat = (str, o) => flatWith(str, o, pickFlat);
+export const encode = (src, o) => bytes(src, o, 0);
+export const encodeFlat = (src, o) => bytes(src, o, 1);
