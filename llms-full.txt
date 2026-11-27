@@ -1410,7 +1410,7 @@ with `--exe` for the other runtimes. On the 1000 real-world lines, one `Polyline
 
 ### Size
 
-Gzipped with `node scripts/size.js`: 3,628 bytes for the whole entry, 1,722 for `PolylineDecoder` alone. The CLI, which uses it, is 6,921.
+Gzipped with `node scripts/size.js`: 3,624 bytes for the whole entry, 1,717 for `PolylineDecoder` alone. The CLI, which uses it, is 6,918.
 
 ### How it's tested
 
@@ -1613,7 +1613,7 @@ Instead of `--file`, stdin works too: `< routes.txt` or `cat routes.txt |` in ba
 Installed in a project, the command is `polytini`:
 
 ```
-polytini 0.1.4: encode and decode Google encoded polylines
+polytini 0.1.7: encode and decode Google encoded polylines
 
 Usage:
   polytini encode [lat,lng ...] [options]

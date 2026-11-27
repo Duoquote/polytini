@@ -77,7 +77,7 @@ Instead of `--file`, stdin works too: `< routes.txt` or `cat routes.txt |` in ba
 Installed in a project, the command is `polytini`:
 
 ```
-polytini 0.1.4: encode and decode Google encoded polylines
+polytini 0.1.7: encode and decode Google encoded polylines
 
 Usage:
   polytini encode [lat,lng ...] [options]

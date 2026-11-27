@@ -13,7 +13,7 @@ Streaming, and a CLI whose documented commands work the same in bash, PowerShell
 - They take the same options as `decode` and `encode`, presets included, plus `flat` for `Float64Array` batches.
 - Wherever the input is cut, the result is what `decode` and `encode` give on the whole input: the same numbers, the same string, and the same `PolylineError` code, index and message. `test/stream.test.js` checks that by cutting random, broken and fixture inputs (the vectors, PostGIS and the real-world lines) at every position, as strings and as UTF-8 bytes, and at random chunk sizes, on Node, Bun, Deno, headless Chrome and workerd.
 - Speed, 1,000,000 points in 64 KB chunks against one call on the whole string, paired runs with `bench/ab.js`: decoding to tuples costs 0 to 8% on Node 22 to 25 and Deno and is 7 to 9% faster on Bun, both for string chunks and for byte chunks against `decode(await res.text())`. Flat output costs up to 19% (Node 22) and is 13 to 20% faster on Bun. Encoding costs up to 15%, except on Node 22, where it's almost three times as fast in pieces. In Chrome, tuples were 6% faster and flat output 12% slower. The tables are in [docs/streaming.md](docs/streaming.md#speed).
-- 3,628 bytes gzipped for the whole entry, 1,722 for `PolylineDecoder` alone.
+- 3,624 bytes gzipped for the whole entry, 1,717 for `PolylineDecoder` alone.
 
 CLI:
 
@@ -22,7 +22,7 @@ CLI:
 - `--lines` reads one input per line and writes one output per line, so a file of any size goes through with constant memory: `polytini decode --lines --file routes.txt`. `--field <name>` decodes or encodes one field of each line's JSON object, and `--skip-errors` reports a bad line and goes on. Errors say which line.
 - stdin and `--file` are read in chunks and output is written as it's ready, so a polyline of a million points needs little memory too. The output is byte for byte what 0.1.4 printed for the same input.
 - In cmd, a polyline that ends in `\` reaches the command with a `"` instead, because Windows reads `\"` as a quote. The error now says to double that backslash.
-- The CLI is 6,921 bytes gzipped, up from 3,839: it carries the stream decoder and encoder. No library entry includes it.
+- The CLI is 6,918 bytes gzipped, up from 3,755 in 0.1.6: it carries the stream decoder and encoder. No library entry includes it.
 
 Docs:
 
