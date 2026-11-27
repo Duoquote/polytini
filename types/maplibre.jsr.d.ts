@@ -20,12 +20,17 @@ import type { FeatureCollection, LineString, GeoJsonProperties } from './geojson
 
 export type { Feature, FeatureCollection, Geometry, GeometryCollection, Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon, Position, BBox, GeoJsonProperties } from './geojson.jsr.d.ts';
 
-/** The parts of a MapLibre or Mapbox Map this module calls. */
+/**
+ * The parts of a MapLibre or Mapbox Map this module calls. The parameters
+ * are `never` so that any real Map fits: maplibre-gl's and mapbox-gl's
+ * addSource and addLayer take their own unions of specifications, which a
+ * structural type here can't match in both directions.
+ */
 export interface MapLike {
-  /** Map#addSource. */
-  addSource(id: string, source: GeoJSONSourceSpecification): unknown;
-  /** Map#addLayer. */
-  addLayer(layer: LineLayerSpecification, beforeId?: string): unknown;
+  /** Map#addSource. The module passes a {@link GeoJSONSourceSpecification}. */
+  addSource(id: string, source: never): unknown;
+  /** Map#addLayer. The module passes a {@link LineLayerSpecification}. */
+  addLayer(layer: never, beforeId?: string): unknown;
   /** Map#getSource. */
   getSource(id: string): unknown;
 }
