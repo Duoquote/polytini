@@ -5,7 +5,7 @@
 //   import { toFeature, fromGeoJSON } from '@duoquote/polytini/turf';
 //   const km = turf.length(toFeature(route.geometry, { precision: 6 }));
 //   const [simplified] = fromGeoJSON(turf.simplify(toFeature(str), { tolerance: 0.001 }));
-/* @ts-self-types="../types/turf.d.ts" */
+/* @ts-self-types="../types/turf.jsr.d.ts" */
 import { decode, encode } from './web.js';
 import { fail } from './error.js';
 

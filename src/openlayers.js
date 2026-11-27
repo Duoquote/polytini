@@ -38,7 +38,7 @@
 //   deltas of 2^29 units or more) are handed to ol's own code, so they give
 //   exactly what ol gives, odd results included: a NaN for a missing value,
 //   and 32-bit wrap-around for very large values.
-/* @ts-self-types="../types/openlayers.d.ts" */
+/* @ts-self-types="../types/openlayers.jsr.d.ts" */
 import { chars, LIMIT } from './core.js';
 
 const STRIDE = { XY: 2, XYZ: 3, XYM: 3, XYZM: 4 };

@@ -6,15 +6,23 @@ export type Point = [number, number, ...number[]];
 
 /** Objects encode reads by name: lat or latitude, lng, lon or longitude, alt or altitude. */
 export interface LatLngLike {
+  /** Latitude. */
   lat?: number;
+  /** Latitude, the long name. */
   latitude?: number;
+  /** Longitude. */
   lng?: number;
+  /** Longitude, another short name. */
   lon?: number;
+  /** Longitude, the long name. */
   longitude?: number;
+  /** Altitude, the third value with `dimensions: 3`. */
   alt?: number;
+  /** Altitude, the long name. */
   altitude?: number;
 }
 
+/** Options for every encode and decode function. */
 export interface Options {
   /** Decimal places, an integer from 0 to 15. Default 5. Google uses 5, OSRM's polyline6 and Valhalla 6. */
   precision?: number;
@@ -40,28 +48,42 @@ export interface Options {
 /** Options, or just the precision. */
 export type OptionsArg = number | Options;
 
+/** PolylineError codes: a bad character, a cut-off string, a value past 2^53, a bad coordinate, input that isn't a string or array, a bad option, or /wasm used before init(). */
 export type ErrorCode = 'char' | 'truncated' | 'overflow' | 'coordinate' | 'input' | 'option' | 'init';
 
+/** What strict mode throws, with a code and, where it makes sense, an index. */
 export class PolylineError extends Error {
+  /** Always "PolylineError". */
   readonly name: 'PolylineError';
   /** What went wrong. */
   readonly code: ErrorCode;
   /** Character index (decode) or point index (encode), when there is one. */
   readonly index: number | undefined;
+  /** Makes an error; the message gets " at <index>" appended when there's an index. */
   constructor(code: ErrorCode, message: string, index?: number);
 }
 
+/** A GeoJSON LineString, [lng, lat] positions. */
 export interface LineString {
+  /** Always "LineString". */
   type: 'LineString';
+  /** The positions. */
   coordinates: number[][];
+  /** Optional bounding box. */
   bbox?: number[];
 }
 
+/** A GeoJSON Feature with a LineString geometry. */
 export interface LineStringFeature {
+  /** Always "Feature". */
   type: 'Feature';
+  /** The line. */
   geometry: LineString;
+  /** The feature's properties. */
   properties: Record<string, unknown> | null;
+  /** Optional id. */
   id?: string | number;
+  /** Optional bounding box. */
   bbox?: number[];
 }
 

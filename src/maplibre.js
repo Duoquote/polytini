@@ -12,7 +12,7 @@
 // MapLibre GL 4 to 6 and Mapbox GL 3 all have with the same arguments.
 // Coordinates come out as [lng, lat] like all GeoJSON, whatever `order` the
 // options or a preset say.
-/* @ts-self-types="../types/maplibre.d.ts" */
+/* @ts-self-types="../types/maplibre.jsr.d.ts" */
 import { toFeatureCollection } from './turf.js';
 import { fail } from './core.js';
 

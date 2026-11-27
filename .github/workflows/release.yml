@@ -58,13 +58,6 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      # The integration types import types from @turf/helpers, @types/geojson
-      # and others, and deno publish reads them from node_modules.
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
       # A published release also pushes its tag, so this can run twice.
       - name: Skip if JSR already has this version
         id: jsr
@@ -72,8 +65,13 @@ jobs:
           if curl -fsS https://jsr.io/@duoquote/polytini/meta.json | grep -q '"${{ needs.version.outputs.version }}"'; then
             echo "already on JSR"; echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
+      # The JSR type files import nothing outside the package, so this needs
+      # no npm install; Deno only has to skip package.json, the way the JSR
+      # server does (ci.yml's jsr job checks this).
       - if: steps.jsr.outputs.skip != 'true'
         run: deno publish
+        env:
+          DENO_NO_PACKAGE_JSON: '1'
 
   npm:
     needs: [test, version]

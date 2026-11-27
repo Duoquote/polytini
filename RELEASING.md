@@ -53,8 +53,12 @@ The workflow still uses an `NPM_TOKEN` repository secret if one exists, for the 
 npm test
 node scripts/size.js
 npm publish --dry-run
-deno publish --dry-run --allow-dirty
+node scripts/check-jsr-types.js
+DENO_NO_PACKAGE_JSON=1 deno publish --dry-run --allow-dirty
+DENO_NO_PACKAGE_JSON=1 deno doc --lint $(node -p 'Object.values(require("./jsr.json").exports).join(" ")')
 node test/smoke.js
 ```
 
 Nothing in this list publishes anything.
+
+JSR builds the docs on its server without node_modules, so the type files it reads (each `@ts-self-types` target in src/ and what those import) can only import this package's own files. That's why mapbox, maplibre, turf, openlayers, google and leaflet have a `*.jsr.d.ts` copy with structural types; the npm `types/*.d.ts` use the real packages' types. `DENO_NO_PACKAGE_JSON=1` makes the local check see the package the way the server does.

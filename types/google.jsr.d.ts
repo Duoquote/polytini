@@ -5,24 +5,35 @@
 import type * as P from './index.d.ts';
 import type { Options, Point } from './index.d.ts';
 
+/** Anything with lat() and lng(), such as google.maps.LatLng. */
 export interface LatLng {
+  /** Latitude in degrees. */
   lat(): number;
+  /** Longitude in degrees. */
   lng(): number;
 }
+/** A plain { lat, lng } object, like google.maps.LatLngLiteral. */
 export interface LatLngLiteral {
+  /** Latitude in degrees. */
   lat: number;
+  /** Longitude in degrees. */
   lng: number;
 }
+/** Anything with getArray(), such as google.maps.MVCArray. */
 export interface MVCArrayLike<T> {
+  /** The items as an array. */
   getArray(): T[];
 }
 
+/** The main entry's PolylineError. */
 export declare const PolylineError: typeof P.PolylineError;
+/** The main entry's PolylineError type. */
 export type PolylineError = P.PolylineError;
 
 /** A LatLng constructor: LatLng or anything built the same way. */
 export type LatLngConstructor = new (lat: number, lng: number, noClampNoWrap?: boolean) => LatLng;
 
+/** Options for decodePath: polytini's options without order, plus the LatLng class. */
 export interface DecodePathOptions extends Omit<Options, 'order'> {
   /**
    * The class to build points with. Default: globalThis.LatLng
@@ -49,6 +60,7 @@ export function decodePath(encodedPath: string, options: DecodePathOptions & { L
  * PolylineError unless `strict: false`.
  */
 export function decodePath(encodedPath: string, options?: number | (DecodePathOptions & { LatLng?: LatLngConstructor })): LatLng[];
+/** decodePath when the LatLng option isn't known until runtime. */
 export function decodePath(encodedPath: string, options?: number | DecodePathOptions): LatLng[] | LatLngLiteral[];
 
 /**

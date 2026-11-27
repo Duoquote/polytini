@@ -2,14 +2,23 @@
 import type * as P from './index.d.ts';
 
 export type { Point, LatLngLike, Options, OptionsArg, ErrorCode, LineString, LineStringFeature } from './index.d.ts';
+/** The main entry's encode. */
 export declare const encode: typeof P.encode;
+/** The main entry's decode. */
 export declare const decode: typeof P.decode;
+/** The main entry's encodeFlat. */
 export declare const encodeFlat: typeof P.encodeFlat;
+/** The main entry's decodeFlat. */
 export declare const decodeFlat: typeof P.decodeFlat;
+/** The main entry's decodeLatLng. */
 export declare const decodeLatLng: typeof P.decodeLatLng;
+/** The main entry's toGeoJSON. */
 export declare const toGeoJSON: typeof P.toGeoJSON;
+/** The main entry's fromGeoJSON. */
 export declare const fromGeoJSON: typeof P.fromGeoJSON;
+/** The main entry's PolylineError. */
 export declare const PolylineError: typeof P.PolylineError;
+/** The main entry's PolylineError type. */
 export type PolylineError = P.PolylineError;
 
 /** Compiles and instantiates the WASM module. Call once before anything else; repeat calls are free. */

@@ -3,11 +3,13 @@
 // passed as `data` to PathLayer, TripsLayer and SolidPolygonLayer.
 import type { Options } from './index.d.ts';
 
+/** Options for binaryPolygons: polytini's options plus float32. */
 export interface BinaryOptions extends Options {
   /** Float32Array instead of Float64Array. Smaller, and enough for most maps; deck.gl uses 64-bit positions only when given them. Default false. */
   float32?: boolean;
 }
 
+/** Options for binaryPaths: BinaryOptions plus timestamps. */
 export interface PathOptions extends BinaryOptions {
   /**
    * For TripsLayer: the last value of each point (with dimensions 3 or 4) goes
@@ -21,15 +23,19 @@ export interface PathOptions extends BinaryOptions {
 
 /** A deck.gl binary attribute. */
 export interface BinaryAttribute<T extends Float32Array | Float64Array = Float32Array | Float64Array, S extends number = number> {
+  /** The values, size per vertex. */
   value: T;
+  /** Values per vertex. */
   size: S;
 }
 
+/** What binaryPaths returns: `data` for PathLayer or TripsLayer. */
 export interface BinaryPaths<T extends Float32Array | Float64Array = Float32Array | Float64Array> {
   /** The number of paths, one per string. */
   length: number;
   /** The first vertex of each path, plus the vertex count at the end (length + 1 entries). */
   startIndices: Uint32Array;
+  /** The vertex attributes. */
   attributes: {
     /** [lng, lat] (size 2) or [lng, lat, z] (size 3) per vertex. */
     getPath: BinaryAttribute<T, 2 | 3>;
@@ -38,11 +44,13 @@ export interface BinaryPaths<T extends Float32Array | Float64Array = Float32Arra
   };
 }
 
+/** What binaryPolygons returns: `data` for SolidPolygonLayer. */
 export interface BinaryPolygons<T extends Float32Array | Float64Array = Float32Array | Float64Array> {
   /** The number of polygons, one ring per string. */
   length: number;
   /** The first vertex of each ring, plus the vertex count at the end (length + 1 entries). */
   startIndices: Uint32Array;
+  /** The vertex attributes. */
   attributes: {
     /** [lng, lat] (size 2) or [lng, lat, z] (size 3) per vertex, every ring closed. */
     getPolygon: BinaryAttribute<T, 2 | 3>;
@@ -51,10 +59,14 @@ export interface BinaryPolygons<T extends Float32Array | Float64Array = Float32A
 
 /** Binary data for PathLayer and TripsLayer, one path per string. Pass _pathType: 'open' to skip deck.gl's normalization. */
 export function binaryPaths(encoded: string | string[], options: PathOptions & { float32: true }): BinaryPaths<Float32Array>;
+/** binaryPaths with Float64Array positions, the default. */
 export function binaryPaths(encoded: string | string[], options?: number | (PathOptions & { float32?: false })): BinaryPaths<Float64Array>;
+/** binaryPaths when float32 isn't known until runtime. */
 export function binaryPaths(encoded: string | string[], options?: number | PathOptions): BinaryPaths;
 
 /** Binary data for SolidPolygonLayer, one closed ring per string (no holes). */
 export function binaryPolygons(encoded: string | string[], options: BinaryOptions & { float32: true }): BinaryPolygons<Float32Array>;
+/** binaryPolygons with Float64Array positions, the default. */
 export function binaryPolygons(encoded: string | string[], options?: number | (BinaryOptions & { float32?: false })): BinaryPolygons<Float64Array>;
+/** binaryPolygons when float32 isn't known until runtime. */
 export function binaryPolygons(encoded: string | string[], options?: number | BinaryOptions): BinaryPolygons;

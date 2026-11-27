@@ -6,5 +6,5 @@
 //
 //   import { addPolylineLayer } from '@duoquote/polytini/mapbox';
 //   map.on('load', () => addPolylineLayer(map, 'route', encoded, { layer: { paint: { 'line-color': '#c00' } } }));
-/* @ts-self-types="../types/mapbox.d.ts" */
+/* @ts-self-types="../types/mapbox.jsr.d.ts" */
 export { polylineData, polylineSource, addPolylineLayer, setPolylineData } from './maplibre.js';

@@ -9,5 +9,7 @@ export type Encoded = string | Encoded[];
 /** Adds fromEncoded, toEncoded, encodePath and the polylineEncoded/polygonEncoded factories. Returns L. */
 export function install<T>(L: T): T;
 
+/** The main entry's encode. */
 export declare const encode: typeof P.encode;
+/** The main entry's decode. */
 export declare const decode: typeof P.decode;

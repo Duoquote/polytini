@@ -53,7 +53,26 @@ jobs:
           deno-version: v2.x
       - run: npm ci
       - run: deno run -A test/run.js
+
+  # JSR builds the docs on its server, without node_modules, so check the
+  # package the same way: a clean checkout, no npm install, and Deno told to
+  # ignore package.json (otherwise it asks for the devDependencies).
+  jsr:
+    runs-on: ubuntu-latest
+    env:
+      DENO_NO_PACKAGE_JSON: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: JSR type files import only this package's files
+        run: node scripts/check-jsr-types.js
+      - name: No node_modules
+        run: test ! -e node_modules
       - run: deno publish --dry-run --allow-dirty
+      - name: deno doc --lint on every JSR export
+        run: deno doc --lint $(node -p 'Object.values(require("./jsr.json").exports).join(" ")')
 
   checks:
     runs-on: ubuntu-latest

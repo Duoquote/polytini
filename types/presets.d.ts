@@ -5,13 +5,17 @@
 
 /** A 2D preset: precision and the order of the tuples you pass and get back. */
 export interface Preset2D<P extends number = number, O extends 'latlng' | 'lnglat' = 'latlng' | 'lnglat'> {
+  /** Decimal places. */
   readonly precision: P;
+  /** The tuple order. */
   readonly order: O;
 }
 
 /** A preset with a third value per point, scaled by `zFactor`. */
 export interface Preset3D<P extends number = number, O extends 'latlng' | 'lnglat' = 'latlng' | 'lnglat'> extends Preset2D<P, O> {
+  /** Three values per point. */
   readonly dimensions: 3;
+  /** The factor of the third value. */
   readonly zFactor: number;
 }
 
