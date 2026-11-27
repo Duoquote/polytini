@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="Garmin Connect" version="1.1" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/11.xsd" xmlns:ns3="http://www.garmin.com/xmlschemas/TrackPointExtension/v1" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ns2="http://www.garmin.com/xmlschemas/GpxExtensions/v3">
+  <metadata>
+    <link href="connect.garmin.com">
+      <text>Garmin Connect</text>
+    </link>
+    <time>2026-11-20T07:12:03.000Z</time>
+  </metadata>
+  <trk>
+    <name>London Running</name>
+    <type>running</type>
+    <trkseg>
+      <trkpt lat="51.50070" lon="-0.12460">
+        <ele>12.4</ele>
+        <time>2026-11-20T07:12:03.000Z</time>
+        <extensions>
+          <ns3:TrackPointExtension>
+            <ns3:hr>131</ns3:hr>
+          </ns3:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="51.50140" lon="-0.14190">
+        <ele>14.0</ele>
+        <time>2026-11-20T07:18:41.000Z</time>
+        <extensions>
+          <ns3:TrackPointExtension>
+            <ns3:hr>142</ns3:hr>
+          </ns3:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="51.50790" lon="-0.12810">
+        <ele>17.6</ele>
+        <time>2026-11-20T07:25:10.000Z</time>
+        <extensions>
+          <ns3:TrackPointExtension>
+            <ns3:hr>150</ns3:hr>
+          </ns3:TrackPointExtension>
+        </extensions>
+      </trkpt>
+    </trkseg>
+  </trk>
+  <rte>
+    <name>Planned route</name>
+    <rtept lat="51.50070" lon="-0.12460"/>
+    <rtept lat="51.50790" lon="-0.12810"/>
+  </rte>
+</gpx>
