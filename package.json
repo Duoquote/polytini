@@ -176,7 +176,8 @@
     "test:browser": "node test/browser.js",
     "size": "node scripts/size.js",
     "smoke": "node test/smoke.js",
-    "check:deps": "node scripts/check-deps.js"
+    "check:deps": "node scripts/check-deps.js",
+    "llms": "node scripts/llms.js"
   },
   "devDependencies": {
     "@deck.gl/core": "^9.4.2",
