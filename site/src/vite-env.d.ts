@@ -10,3 +10,8 @@ declare module "google-polyline" {
   }
   export default polyline
 }
+
+declare module "virtual:highlighted" {
+  const html: Record<string, string>
+  export default html
+}

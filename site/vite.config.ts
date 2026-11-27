@@ -3,6 +3,8 @@ import { resolve } from "node:path"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig, type Plugin } from "vite"
+import { codeToHtml } from "shiki"
+import { SNIPPETS, snippetKey } from "./src/snippets.ts"
 
 const repo = resolve(import.meta.dirname, "..")
 const site = "https://duoquote.github.io/polytini/"
@@ -65,10 +67,35 @@ function sharedFiles(): Plugin {
   }
 }
 
+// Highlights every static snippet with Shiki once, at build time, and hands
+// the page a map of HTML. Both themes are in the HTML as CSS variables, so
+// switching light and dark needs no JavaScript and the page ships no
+// highlighter.
+function highlighted(): Plugin {
+  const id = "virtual:highlighted"
+  return {
+    name: "polytini-highlighted",
+    resolveId: (source) => (source === id ? "\0" + id : undefined),
+    async load(resolved) {
+      if (resolved !== "\0" + id) return
+      const map: Record<string, string> = {}
+      for (const { code, lang } of SNIPPETS) {
+        const html = await codeToHtml(code, {
+          lang,
+          themes: { light: "github-light-default", dark: "github-dark-default" },
+          defaultColor: false,
+        })
+        map[snippetKey(code, lang)] = html.replace(/^[\s\S]*?<code>/, "").replace(/<\/code><\/pre>\s*$/, "")
+      }
+      return `export default ${JSON.stringify(map)}`
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   base: "/polytini/",
-  plugins: [react(), tailwindcss(), sharedFiles()],
+  plugins: [react(), tailwindcss(), sharedFiles(), highlighted()],
   define: {
     // The version of the code the demo runs: the repo's own src/.
     __POLYTINI_VERSION__: JSON.stringify(json(resolve(repo, "package.json")).version),

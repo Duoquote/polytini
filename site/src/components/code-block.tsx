@@ -1,13 +1,16 @@
 import { cn } from "cn"
 import { CopyButton } from "@/components/copy-button"
+import { highlight } from "@/lib/highlight"
 
 export function CodeBlock({
   code,
+  lang = "js",
   label,
   className,
   maxHeight,
 }: {
   code: string
+  lang?: "bash" | "js" | "json" | "text"
   label?: string
   className?: string
   maxHeight?: string
@@ -23,11 +26,11 @@ export function CodeBlock({
         <CopyButton text={code} className="absolute top-1 right-1 bg-background/80" />
       )}
       <pre
-        className="overflow-auto p-3 font-mono text-xs leading-relaxed"
+        className="code overflow-auto p-3 pr-10 font-mono text-xs leading-relaxed"
         style={maxHeight ? { maxHeight } : undefined}
         tabIndex={0}
       >
-        <code>{code}</code>
+        <code dangerouslySetInnerHTML={{ __html: highlight(code, lang) }} />
       </pre>
     </div>
   )

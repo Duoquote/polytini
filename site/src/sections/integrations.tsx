@@ -9,90 +9,13 @@ import { MapView, MAP_COLORS } from "@/components/map-view"
 import { Section } from "@/components/section"
 import { BERLIN } from "@/lib/examples"
 import { useDark } from "@/lib/use-dark"
-
-const SNIPPETS: { id: string; label: string; code: string; note: string }[] = [
-  {
-    id: "maplibre",
-    label: "MapLibre / Mapbox GL",
-    code: `import { addPolylineLayer, setPolylineData } from '@duoquote/polytini/maplibre'; // or /mapbox
-import { osrm6 } from '@duoquote/polytini/presets';
-
-map.on('load', () => addPolylineLayer(map, 'route', route.geometry, { ...osrm6, layer: { paint: { 'line-width': 4 } } }));
-setPolylineData(map, 'route', [a.geometry, b.geometry], { ...osrm6, properties: [{ name: 'a' }, { name: 'b' }] });`,
-    note: "polylineSource() and polylineData() build the GeoJSON source and FeatureCollection without touching a map. The map below runs the first call.",
-  },
-  {
-    id: "leaflet",
-    label: "Leaflet",
-    code: `import L from 'leaflet';
-import { install } from '@duoquote/polytini/leaflet';
-install(L); // or: import '@duoquote/polytini/leaflet/auto' when Leaflet is the global L
-
-const line = L.Polyline.fromEncoded(str, { color: 'red', precision: 6 }).addTo(map);
-line.toEncoded();                                  // '...'
-L.Polygon.fromEncoded([outer, hole]).toEncoded();  // ['...', '...']`,
-    note: "Leaflet 1.9 and the Leaflet 2 betas. Leaflet 2's namespace is frozen, so there install skips the lower-case factories.",
-  },
-  {
-    id: "turf",
-    label: "Turf",
-    code: `import { toFeature, toFeatureCollection, fromGeoJSON } from '@duoquote/polytini/turf';
-
-turf.length(toFeature(str, { precision: 6, properties: { id: 1 }, bbox: true }));
-fromGeoJSON(turf.simplify(toFeature(str), { tolerance: 0.001 })); // ['...']`,
-    note: "fromGeoJSON here takes any GeoJSON and returns one string per line: LineStrings, MultiLineString parts and polygon rings.",
-  },
-  {
-    id: "openlayers",
-    label: "OpenLayers",
-    code: `import Polyline from 'ol/format/Polyline.js';
-import LineString from 'ol/geom/LineString.js';
-import { createPolylineFormat } from '@duoquote/polytini/openlayers';
-
-const FastPolyline = createPolylineFormat({ Polyline, LineString });
-const format = new FastPolyline({ factor: 1e6 });
-const feature = format.readFeature(route.geometry, { featureProjection: 'EPSG:3857' });`,
-    note: "A subclass of ol/format/Polyline with the same options and output. Unlike ol's own, writeGeometry leaves your geometry alone.",
-  },
-  {
-    id: "deckgl",
-    label: "deck.gl",
-    code: `import { PathLayer } from '@deck.gl/layers';
-import { binaryPaths } from '@duoquote/polytini/deckgl';
-
-const data = binaryPaths(routes.map((r) => r.geometry), { precision: 6, float32: true });
-new PathLayer({ id: 'routes', data, _pathType: 'open', getWidth: 3, widthUnits: 'pixels' });`,
-    note: "Decodes straight into deck.gl's binary attributes: one buffer for all lines, no array per point. binaryPolygons() does the same for fills.",
-  },
-  {
-    id: "google",
-    label: "Google Maps",
-    code: `import { decodePath, encodePath } from '@duoquote/polytini/google';
-
-const path = decodePath(route.polyline.encodedPolyline); // LatLng[] once Maps has loaded
-new google.maps.Polyline({ path, map });
-encodePath(polyline.getPath());                           // MVCArray<LatLng> to string`,
-    note: "A drop-in for google.maps.geometry.encoding.decodePath and encodePath, strict by default too.",
-  },
-]
-
-const CLI = [
-  "pnpm dlx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'",
-  "bunx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'",
-  "deno run jsr:@duoquote/polytini/cli decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'",
-  "npx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'",
-]
-
-const LIVE = `addPolylineLayer(map, 'route', BERLIN, {
-  ...osrm6,
-  layer: { paint: { 'line-width': 4, 'line-color': '${MAP_COLORS.light.route}' } },
-});`
+import { CLI_DECODE, CLI_ENCODE, INTEGRATIONS, LIVE } from "@/snippets"
 
 export function Integrations() {
   const dark = useDark()
   const onStyle = useCallback(
     (map: MapLibreMap) => {
-      // The snippet above, run for real.
+      // The LIVE snippet, run for real.
       addPolylineLayer(map, "route", BERLIN, {
         ...osrm6,
         layer: { paint: { "line-width": 4, "line-color": dark ? MAP_COLORS.dark.route : MAP_COLORS.light.route } },
@@ -109,28 +32,47 @@ export function Integrations() {
     >
       <Tabs defaultValue="maplibre">
         <TabsList className="h-auto flex-wrap">
-          {SNIPPETS.map((s) => (
+          {INTEGRATIONS.map((s) => (
             <TabsTrigger key={s.id} value={s.id} className="flex-none">
               {s.label}
             </TabsTrigger>
           ))}
-          <TabsTrigger value="cli" className="flex-none">CLI</TabsTrigger>
+          <TabsTrigger value="cli" className="flex-none">
+            CLI
+          </TabsTrigger>
         </TabsList>
-        {SNIPPETS.map((s) => (
+        {INTEGRATIONS.map((s) => (
           <TabsContent key={s.id} value={s.id} className="mt-4 flex flex-col gap-2">
-            <CodeBlock code={s.code} />
+            <CodeBlock code={s.code} lang="js" />
             <p className="max-w-3xl text-xs text-muted-foreground">{s.note}</p>
           </TabsContent>
         ))}
-        <TabsContent value="cli" className="mt-4 flex flex-col gap-2">
-          {CLI.map((c) => (
-            <CommandLine key={c} command={c} />
-          ))}
-          <p className="max-w-3xl text-xs text-muted-foreground">
-            It reads stdin too: <code>{"echo '[[38.5,-120.2],[40.7,-120.95]]' | bunx @duoquote/polytini encode"}</code>.
-            JSON, GeoJSON, CSV and plain lines; <code>-p 6</code> for precision 6, <code>-f geojson</code> for
-            GeoJSON out.
-          </p>
+        <TabsContent value="cli" className="mt-4 flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <h3 className="text-xs font-medium">Decode</h3>
+            {CLI_DECODE.map((c) => (
+              <CommandLine key={c} command={c} />
+            ))}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <h3 className="text-xs font-medium">Encode</h3>
+            {CLI_ENCODE.map((c) => (
+              <CommandLine key={c} command={c} />
+            ))}
+          </div>
+          <div className="max-w-3xl space-y-2 text-xs text-muted-foreground">
+            <p>
+              Quoting your own polylines: single quotes in bash, zsh and PowerShell, double quotes in cmd.
+            </p>
+            <p>
+              The example is a short walk in Berlin, from the Brandenburg Gate past the Reichstag to the main station. It
+              has none of the characters shells treat specially, so these lines work as they are in bash, zsh, fish,
+              PowerShell and cmd. Your own polylines can contain <code>`</code>, <code>\</code>, <code>|</code> and{" "}
+              <code>^</code>, which is why they need the quotes above. For a long line or many points, use{" "}
+              <code>--file points.json</code> (JSON, GeoJSON, CSV or one point per line), <code>-p 6</code> for
+              precision 6 and <code>-f geojson</code> for GeoJSON out.
+            </p>
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -141,7 +83,7 @@ export function Integrations() {
             This map runs the call below with the Berlin route from the playground. <code>osrm6</code> says precision 6,
             and the helper adds a GeoJSON source and a line layer.
           </p>
-          <CodeBlock code={LIVE} />
+          <CodeBlock code={LIVE} lang="js" />
         </div>
         <MapView
           onStyle={onStyle}
