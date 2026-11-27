@@ -48,6 +48,9 @@ export type WasmSource = object | ArrayBuffer | ArrayBufferView;
  * bytes (Cloudflare Workers), pass the compiled module:
  * `import wasm from '@duoquote/polytini/polytini.wasm'; await init(wasm)`.
  * Without it there, init throws a PolylineError with code 'init'.
+ * Called without a module, it also compiles a second module on JS String
+ * Builtins where the engine is V8 and has them (Chrome 130+, Node 22.19+
+ * and 24+, Deno), which some calls use. The results are the same either way.
  */
 export function init(module?: WasmSource): Promise<void>;
 

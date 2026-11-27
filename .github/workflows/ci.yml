@@ -108,8 +108,8 @@ jobs:
         run: node scripts/size.js
       - name: llms-full.txt is generated from the current types and docs
         run: node scripts/llms.js --check
-      - name: The committed .wasm matches the .wat
-        run: node scripts/build-wasm.js && git diff --exit-code -- wasm/polytini.wasm src/wasm-bytes.js
+      - name: Both committed .wasm files match their .wat
+        run: node scripts/build-wasm.js && git diff --exit-code -- wasm/polytini.wasm wasm/polytini-strings.wasm src/wasm-bytes.js
       - name: Coverage
         run: npx c8 --reporter=text-summary --include='src/**' node test/run.js
       - name: Integration types against the real libraries

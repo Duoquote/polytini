@@ -2,14 +2,21 @@
 // the functions are synchronous and take the same arguments as the main
 // entry, plus two batch functions for many lines in one call.
 //
-// The module (wasm/polytini.wat, under 1 KB) does the parsing and
-// formatting. The glue keeps one instance and one memory for the whole
-// program, grows it when an input doesn't fit, and moves data with
-// TextEncoder.encodeInto and latin1Slice (or TextDecoder). Anything the module doesn't handle
-// (objects, other dimensions, bad input) goes to the JS core, so results and
-// errors are the same as the main entry's.
+// Two modules, both under 1 KB, do the parsing and formatting:
+// - wasm/polytini.wat, everywhere. The glue keeps one instance and one
+//   memory for the whole program, grows it when an input doesn't fit, and
+//   moves strings through that memory with TextEncoder.encodeInto and
+//   latin1Slice (or TextDecoder).
+// - wasm/polytini-strings.wat, the same loops on JS String Builtins
+//   (wasm:js-string): strings go in and out as JS strings, with no copy
+//   through linear memory. Used on V8 where it compiles (Chrome 130+, Node
+//   22.19+ and 24+, Deno), for the calls where it measured faster (see
+//   `builtins` below).
+// Anything the modules don't handle (objects, other dimensions, bad input)
+// goes to the JS core, so results and errors are the same as the main
+// entry's.
 /* @ts-self-types="../types/wasm.d.ts" */
-import bytes from './wasm-bytes.js';
+import bytes, { strings } from './wasm-bytes.js';
 import { opts, st, slowDecode, slowEncode, fail, latLngs, toGeo, fromGeo, decode as jsDecode, decodeFlat as jsFlat, encode as jsEncode, encodeFlat as jsEncodeFlat } from './core.js';
 
 export { PolylineError } from './core.js';
@@ -17,6 +24,8 @@ export { PolylineError } from './core.js';
 // The module keeps nothing in its memory, so the glue uses all of it.
 const base = 0;
 let ex, mem, u8, f64, u32, input, size = 0;
+// The string-builtins instance, its memory and a view of it, or undefined.
+let sx, smem, sf64, ssize = 0;
 // Node's and Bun's latin1Slice, looked up without writing the class's name:
 // esm.sh adds an 8.8 KB gzipped polyfill of it to any module that mentions
 // it, and ArrayBuffer.name.slice(5) is the same string. Deno has the global
@@ -26,7 +35,7 @@ const g = globalThis;
 const latin1Slice = !g.Deno && g.process?.versions?.node && g[ArrayBuffer.name.slice(5)]?.prototype.latin1Slice;
 // In Deno a UTF-8 TextDecoder is faster than a latin1 one for these ASCII
 // bytes (encode 7 to 31% faster in paired runs); elsewhere latin1 is.
-const te = new TextEncoder(), td = new TextDecoder(globalThis.Deno ? 'utf-8' : 'latin1');
+const te = new TextEncoder(), td = new TextDecoder(g.Deno ? 'utf-8' : 'latin1');
 
 // The inlined base64 to bytes, once per init. On a cold start (a fresh
 // process timing the first call) Uint8Array.fromBase64 took 0.03 to 0.04 ms
@@ -52,6 +61,37 @@ const views = () => {
   // encodeInto writes at the start of its target, so keep one view at base.
   input = u8.subarray(base);
 };
+
+// String builtins only on V8, the engine they were measured on: Bun
+// (JavaScriptCore) has them too, but decoding was 4 to 7% slower there and
+// short lines up to 20%. Firefox and Safari haven't been measured, so they
+// keep the other module.
+const v8 = !g.Bun && !!(g.process?.versions?.v8 || g.Deno || /Chrome\//.test(g.navigator?.userAgent));
+// Compiling with { builtins: ['js-string'] } gives a module with no imports
+// where the engine has them. Where it doesn't, the option is ignored and the
+// wasm:js-string imports are missing, so instantiating throws (Node 22.12 to
+// 22.18 without a flag, older browsers, workerd), and every call takes the
+// other module.
+function builtins() {
+  if (!v8) return;
+  try {
+    sx = new WebAssembly.Instance(new WebAssembly.Module(bin(strings), { builtins: ['js-string'] })).exports;
+  } catch {
+    return;
+  }
+  smem = sx.memory;
+  sviews();
+}
+const sviews = () => {
+  sf64 = new Float64Array(smem.buffer);
+  ssize = sf64.byteLength;
+};
+function sroom(n) {
+  if (n > ssize) {
+    smem.grow(Math.ceil((n - ssize) / 65536));
+    sviews();
+  }
+}
 
 // Cloudflare Workers don't compile WebAssembly from bytes at runtime; there
 // the .wasm file is imported, which gives a compiled WebAssembly.Module, and
@@ -79,17 +119,22 @@ export async function init(module) {
   }
   // A Module gives an Instance, bytes give { module, instance }.
   ready(compiled(module) ? r : r.instance);
+  // A module from the caller means the runtime can't compile the inlined
+  // bytes, so don't try the other ones.
+  if (!module) builtins();
 }
 
 /** Synchronous init. Browsers allow it here because the module is small. */
 export function initSync(module) {
   if (ex) return;
+  let m;
   try {
-    module = compiled(module) ? module : new WebAssembly.Module(module || bin(bytes));
+    m = compiled(module) ? module : new WebAssembly.Module(module || bin(bytes));
   } catch (e) {
     blocked(e, module);
   }
-  ready(new WebAssembly.Instance(module));
+  ready(new WebAssembly.Instance(m));
+  if (!module) builtins();
 }
 
 // Makes sure `n` bytes past base exist. The memory only grows, so a big
@@ -121,10 +166,34 @@ function run(str, f) {
 }
 
 // Lines this short are faster in JS on every runtime measured: the call and
-// moving the data in and out cost more than the work. About 30 points.
+// moving the data in and out cost more than the work. About 30 points. With
+// string builtins decodeFlat has no cutoff: it was faster than the JS core
+// from 10 points up on Node and in Chrome and Deno.
 const SHORT = 128;
+// With string builtins, lines under this many points encode through them,
+// and encodeMany takes them when its lines average fewer. Longer lines go
+// through bytes and one latin1Slice or TextDecoder call, which made the
+// string faster than fromCharCodeArray from about 64 points on Node 24 and
+// 26 (1.02 to 1.07 slower at 128 to 512 points with the builtins) and from
+// about 256 in Chrome and Deno (Chrome 1.04 to 1.07 slower at 512). On Node
+// 22 (V8 12) the builtins were 10 to 26% faster at every length tried (10
+// to 512 points, the real-world lines, batches of 20- and 500-point lines),
+// so there's no cutoff.
+const pv = g.process?.versions, node = !g.Deno && !!pv?.node, v12 = !!pv?.v8?.startsWith('12.');
+const SB_ENCODE = g.Deno ? 256 : v12 ? Infinity : node ? 64 : 256, SB_MANY = SB_ENCODE;
+// decodeMany through the builtins, one call per line, was 4 to 8% slower
+// than the other module's one call on the joined lines on Node 24 and 26,
+// and 13% faster in Chrome. Even on Node 22 and in Deno.
+const SB_DECODE_MANY = !node || v12;
 
 export function decodeFlat(str, o) {
+  if (sx && typeof str == 'string') {
+    const f = opts(o);
+    if (st.dims != 2) return slowDecode(str, f, 1);
+    sroom(str.length * 8 + 16);
+    const k = sx.decode(str, 0, f, +st.swap);
+    return k < 0 ? slowDecode(str, f, 1) : sf64.slice(0, k);
+  }
   if (typeof str == 'string' && str.length < SHORT) return jsFlat(str, o);
   const f = opts(o);
   if (typeof str != 'string') fail('input', 'Expected a string');
@@ -145,6 +214,7 @@ function finish(values, f) {
 }
 
 export function encode(points, o) {
+  if (sx && points?.length < SB_ENCODE) return sbEncode(points, o);
   if (points?.length < SHORT / 4) return jsEncode(points, o);
   const f = opts(o);
   if (st.dims != 2 || !Array.isArray(points)) return slowEncode(points, f);
@@ -167,6 +237,7 @@ export function encode(points, o) {
 }
 
 export function encodeFlat(values, o) {
+  if (sx && values?.length < SB_ENCODE * 2) return sbEncodeFlat(values, o);
   if (values?.length < SHORT / 2) return jsEncodeFlat(values, o);
   const f = opts(o);
   if (st.dims != 2 || values == null || values.length % 2) return slowEncode(values, f, 1);
@@ -179,6 +250,42 @@ export function encodeFlat(values, o) {
   if (st.swap) for (let i = 0; i < n; i += 2) (f64[at + i] = values[i + 1]), (f64[at + i + 1] = values[i]);
   else f64.set(values, at);
   return finish(n, f) ?? slowEncode(values, f, 1);
+}
+
+// encode and encodeFlat through the string builtins, in their own functions:
+// with one function for both, the paths above were 2 to 3% slower than
+// 0.1.4 at 100 points on Node 24 and 26, and 0 to 1% with two.
+function sbEncode(points, o) {
+  const f = opts(o);
+  if (st.dims != 2 || !Array.isArray(points)) return slowEncode(points, f);
+  const n = points.length, a = +st.swap, b = 1 - a;
+  sroom(n * 16 + 16);
+  const m = sf64;
+  try {
+    for (let i = 0, j = 0; i < n; i++, j += 2) {
+      const p = points[i], x = p[a], y = p[b];
+      if (typeof x != 'number' || typeof y != 'number') return slowEncode(points, f);
+      m[j] = x;
+      m[j + 1] = y;
+    }
+  } catch {
+    return slowEncode(points, f);
+  }
+  return sx.encode(0, n * 2, f) ?? slowEncode(points, f);
+}
+
+function sbEncodeFlat(values, o) {
+  const f = opts(o);
+  if (st.dims != 2 || values == null || values.length % 2) return slowEncode(values, f, 1);
+  const n = values.length;
+  sroom(n * 8 + 16);
+  if (!(values instanceof Float64Array || values instanceof Float32Array)) {
+    for (let i = 0; i < n; i++) if (typeof values[i] != 'number') return slowEncode(values, f, 1);
+  }
+  const m = sf64;
+  if (st.swap) for (let i = 0; i < n; i += 2) (m[i] = values[i + 1]), (m[i + 1] = values[i]);
+  else m.set(values);
+  return sx.encode(0, n, f) ?? slowEncode(values, f, 1);
 }
 
 /**
@@ -196,6 +303,18 @@ export function decodeMany(lines, o) {
     len += lines[i].length;
   }
   if (st.dims != 2) return many(lines, o);
+  if (sx && SB_DECODE_MANY) {
+    // One call per line: 2 to 9% faster than one call on the joined lines.
+    sroom(len * 8 + 16);
+    const starts = new Uint32Array(count + 1), sw = +st.swap;
+    let at = 0;
+    for (let i = 0; i < count; i++) {
+      const k = sx.decode(lines[i], at * 8, f, sw);
+      if (k < 0) return many(lines, o);
+      starts[i + 1] = (at += k) >> 1;
+    }
+    return { coords: sf64.slice(0, at), starts };
+  }
   const lens = base + align(len), out = lens + align(count * 4), starts = out + len * 8 + 8;
   room(starts - base + count * 4 + 16);
   if (!put(lines.join(''), len)) return many(lines, o);
@@ -233,6 +352,7 @@ export function encodeMany(lines, o) {
       if (!Array.isArray(l)) return lines.map((x) => jsEncode(x, o));
       n += l.length;
     }
+    if (sx && n < SB_MANY * count) return sbMany(lines, count, n, f, o);
     room(n * 16 + count * 8 + n * 14 + 64);
     const a = +st.swap, b = 1 - a, m = f64, S = u32, s0 = (base + n * 16) >> 2;
     let j = base >> 3, k = 0;
@@ -272,6 +392,29 @@ function manyOut(startsAt, count, n, f) {
   if (k < 0) return null;
   const r = Array(count), e = u32, e0 = ends >> 2;
   for (let i = 0, a = out; i < count; i++) r[i] = text(a, (a = out + e[e0 + i]));
+  return r;
+}
+
+// encodeMany through the string builtins: every point into memory, then one
+// call per line, each returning its string.
+function sbMany(lines, count, n, f, o) {
+  sroom(n * 16 + 16);
+  const a = +st.swap, b = 1 - a, m = sf64, r = Array(count);
+  let j = 0;
+  try {
+    for (let i = 0; i < count; i++) {
+      const l = lines[i], len = l.length, start = j;
+      for (let q = 0; q < len; q++) {
+        const p = l[q], x = p[a], y = p[b];
+        if (typeof x != 'number' || typeof y != 'number') return lines.map((x) => jsEncode(x, o));
+        m[j++] = x;
+        m[j++] = y;
+      }
+      if ((r[i] = sx.encode(start * 8, len * 2, f)) == null) return lines.map((x) => jsEncode(x, o));
+    }
+  } catch {
+    return lines.map((x) => jsEncode(x, o));
+  }
   return r;
 }
 

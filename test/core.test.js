@@ -188,11 +188,12 @@ for (const { name, api } of all) {
     eq(api.encode([['38.5', '-120.2']]), ref.encode([[38.5, -120.2]], 5));
   });
 
-  test(`${name}: every length from 0 to 40 and around 512 and 1024 points`, () => {
+  test(`${name}: every length from 0 to 40 and around 64, 128, 256, 512 and 1024 points`, () => {
     // The entries switch from string building to byte buffers at different
-    // lengths (16, 32, 512 and 1024 points), so check each side of all of them.
+    // lengths (16, 32, 512 and 1024 points, and the string-builtins cutoffs in
+    // wasm.js), so check each side of all of them.
     const walk = cases(5)['random walk (2000 points, long enough for every fast path)'];
-    for (const n of [...Array(41).keys(), 511, 512, 513, 1023, 1024, 1025]) {
+    for (const n of [...Array(41).keys(), 63, 64, 65, 127, 128, 129, 255, 256, 257, 511, 512, 513, 1023, 1024, 1025]) {
       const line = walk.slice(0, n), s = ref.encode(line, 5);
       eq(api.encode(line), s, `encode ${n}`);
       eq(api.encodeFlat(new Float64Array(line.flat())), s, `encodeFlat ${n}`);
@@ -274,7 +275,9 @@ test('every entry has the same exports', () => {
 });
 
 test('wasm: decodeMany and encodeMany match the per-line results', () => {
-  const w = all.find((e) => e.name == 'wasm').api;
+  for (const { api: w } of all.filter((e) => e.api.decodeMany)) wasmMany(w);
+});
+function wasmMany(w) {
   const lines = [[], pts, [[0, 0]], Array.from({ length: 300 }, (_, i) => [i / 7 - 20, -i / 3 + 50.123456])];
   for (const o of [undefined, 6, { order: 'lnglat' }, { precision: 0 }]) {
     // The strings always hold lat first; lnglat only flips the tuples.
@@ -290,10 +293,17 @@ test('wasm: decodeMany and encodeMany match the per-line results', () => {
   throws(() => w.decodeMany([google, google.slice(0, -2)]), 'truncated');
   eq(w.decodeMany([google, 'a!'], { strict: false }).starts.length, 3);
   throws(() => w.encodeMany([pts, [[NaN, 1]]]), 'coordinate');
+  // A null point, in short lines and in long ones (the two encodeMany paths).
+  const long = Array.from({ length: 300 }, (_, i) => [i / 7, i / 9]);
+  for (const batch of [[pts, [[1, 2], null]], [long, long, [[1, 2], null]]]) {
+    const want = throws(() => all[0].api.encode([[1, 2], null]));
+    eq(throws(() => w.encodeMany(batch)).code, want.code, 'null point');
+    eq(w.encodeMany(batch, { strict: false }), batch.map((l) => all[0].api.encode(l, { strict: false })), 'null point, lenient');
+  }
   throws(() => w.decodeMany('abc'), 'input');
   eq(w.decodeMany([]).coords.length, 0);
   eq(w.encodeMany([]), []);
-});
+}
 
 // A running sum past 2^31: precision 8 and up does that with real
 // coordinates (30 degrees is 3e9 at 1e8). The JS paths add in doubles; the

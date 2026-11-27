@@ -90,7 +90,7 @@ For a plain `<script>` tag, use the IIFE build. It sets a global `polytini` with
 
 ## WASM
 
-There's an opt-in WebAssembly build: a hand-written WAT module that assembles to 906 bytes, inlined as base64 so it loads the same way in browsers, bundlers, Node, Bun and Deno. Nothing loads it unless you import it:
+There's an opt-in WebAssembly build: a hand-written WAT module that assembles to 912 bytes, and since 0.1.5 a second one of 835 bytes that uses JS String Builtins (below). Both are inlined as base64 so they load the same way in browsers, bundlers, Node, Bun and Deno. Nothing loads them unless you import `/wasm`:
 
 ```js
 import { init, decodeFlat, decodeMany, encodeMany } from '@duoquote/polytini/wasm';
@@ -134,6 +134,37 @@ And the batch calls, on the 1000 real-world lines, against the JS way to get the
 | `encodeMany` vs `encode` per line | 0.61 | 0.79 | 0.79 | 0.75 |
 
 Cells moved about 30% between rounds, so read the small differences as even. The clear results: the biggest gains were in Deno, where the old build was 2 to 3 times slower than JS; `decodeMany` is the one call where WASM wins by a lot, except in Chrome; and `encodeMany` loses everywhere, because making one string per line is the expensive part and it doesn't get cheaper in a batch. The full tables are in the benchmark's [results](https://github.com/Duoquote/polyline-benchmark/blob/main/docs/results.md).
+
+### JS String Builtins
+
+Since 0.1.5, `init()` also compiles `wasm/polytini-strings.wat` with `{ builtins: ['js-string'] }`. It has the same decode and encode loops, but strings go in and out as JS strings: decode copies the string once into a Wasm GC `i16` array with `intoCharCodeArray`, and encode writes characters into that array and makes the string with `fromCharCodeArray`. Nothing goes through `TextEncoder`, `latin1Slice` or `TextDecoder`, which is most of the cost of a short call.
+
+Where it's used:
+
+- Only on V8: Chrome 130 and newer, Node 22.19+ and 24+, Deno. Bun has the builtins too, but decoding was 4 to 7% slower there with them, and Firefox and Safari haven't been measured, so they keep the other module. So do Node 22.12 to 22.18, where the builtins need a flag, and Cloudflare Workers, which compile an imported `.wasm` without them. `init(module)` never tries it.
+- `decodeFlat` at every length. The 128-character cutoff to the JS core is gone there, because this was faster than the JS core from 10 points up.
+- `encode` and `encodeFlat` below 64 points on Node 24 and 26, below 256 in Chrome and Deno, and at every length on Node 22. Above that, one `latin1Slice` or `TextDecoder` call makes the string faster than `fromCharCodeArray`. `encodeMany` takes the same cutoff on the average line length.
+- `decodeMany` in Chrome, Deno and Node 22, one call per line. On Node 24 and 26 that was 4 to 8% slower than the other module's one call over the joined lines, so it stays there.
+
+Detection is one compile with the option: an engine without the builtins ignores it, the `wasm:js-string` imports are then missing, and instantiating throws. The test suite runs every check on both modules, and on which one each runtime gets.
+
+0.1.5's `/wasm` against 0.1.4's, time per call, new divided by old. Paired runs with `bench/ab.js` from the research repo: 10 rounds of fresh processes (a fresh Chrome context for Chrome), pinned to 4 cores at high priority, fastest of 40 samples. "same" means the 95% interval included 1.00. A against itself gave 0.93 to 1.09 per cell. The Node 24 and 26 `encode` rows are from a second run after the builtins path for `encode` got its own function, which took `encode` at 100 points from 1.02 to 1.03 down to 1.00 to 1.01:
+
+| | Node 22 | Node 24 | Node 26 | Bun 1.4.3 | Deno 2.5 | Chrome 156 |
+|---|--:|--:|--:|--:|--:|--:|
+| `decodeFlat`, 10 points | same | 0.88 | 0.89 | same | 0.88 | 0.91 |
+| `decodeFlat`, 100 points | same | 0.86 | 0.76 | same | 0.75 | 0.74 |
+| `decodeFlat`, real-world lines | same | same | same | 1.03 | same | 0.80 |
+| `decodeFlat`, 100,000 points | same | 1.03 | same | 1.03 | 1.03 | 0.82 |
+| `decodeMany`, real-world lines | same | 1.04 | same | 1.03 | same | 0.87 |
+| `encode`, 10 points | 0.36 | 0.31 | 0.35 | same | 0.45 | 0.48 |
+| `encode`, 100 points | 0.81 | same | 1.01 | same | 0.67 | 0.84 |
+| `encode`, real-world lines | same | same | same | same | same | 0.94 |
+| `encode`, 10,000 points | same | same | same | 1.01 | same | same |
+| `encodeFlat`, 100,000 points | 0.89 | same | same | same | same | same |
+| `encodeMany`, real-world lines | same | same | same | same | same | same |
+
+The 1.03 and 1.04 cells are the 64-bit sums (see the changelog): the old module added coordinates in 32 bits, which wrapped past 2^31, and real lines get there at precision 8 and up. The fix costs 2 to 4% on long decodes through that module, which is what Bun, and Node 24 and 26 for `decodeMany`, still use. The Node 22 runs were the noisiest, so most of its cells say "same" even where the median moved by 5 to 10%. The research repo has the commands and every round.
 
 What didn't: a Rust version that reads 8 bytes at a time with 64-bit tricks (SWAR) was 2.7 KB and 10 to 40% slower than the byte loop. Each value starts where the last one ended, and typical GPS values are 1 to 3 characters, so a byte loop with a well-predicted branch is already about 3 cycles per character. SIMD runs into the same chain, so I didn't ship it.
 
