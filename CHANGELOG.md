@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2
+
+- Cloudflare Workers: a `workerd` export condition, which gives Workers the Deno entry (`src/deno.js`). Wrangler used to pick the browser entry, and the Deno entry decoded faster than it in workerd.
+- `/wasm`: `init(module)` and `initSync(module)` take a compiled `WebAssembly.Module` or the `.wasm` bytes, and the package exports the file as `@duoquote/polytini/polytini.wasm`. Workers don't compile WebAssembly from bytes, so there you import the file and pass it in. Without it, `init()` throws a `PolylineError` with code `'init'` that says how, instead of the runtime's own error.
+- `npm run test:workers` runs the package and the test files that need no DOM in workerd, locally through wrangler. CI runs it.
+- JSR: every entry has a module doc, and CI checks that.
+
 ## 0.1.1
 
 No changes to the code. The npm types only gained doc comments.

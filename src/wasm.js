@@ -37,14 +37,43 @@ const views = () => {
   input = u8.subarray(base);
 };
 
-/** Compiles and instantiates the module. Safe to call more than once. */
-export async function init() {
-  if (!ex) ready((await WebAssembly.instantiate(bin())).instance);
+// Cloudflare Workers don't compile WebAssembly from bytes at runtime; there
+// the .wasm file is imported, which gives a compiled WebAssembly.Module, and
+// passed in. The inlined bytes are valid, so a CompileError on them means
+// the runtime refuses to compile. Errors from what the caller passed are
+// theirs and pass through.
+const blocked = (e, module) => {
+  if (module || !(e instanceof WebAssembly.CompileError)) throw e;
+  fail('init', "Can't compile WebAssembly from bytes here (" + e.message + '). Pass the compiled module: import wasm from "@duoquote/polytini/polytini.wasm"; await init(wasm)');
+};
+const compiled = (m) => m instanceof WebAssembly.Module;
+
+/**
+ * Instantiates the module. Safe to call more than once. Pass a compiled
+ * WebAssembly.Module (or the .wasm bytes) where the runtime can't compile
+ * the inlined bytes itself, like Cloudflare Workers.
+ */
+export async function init(module) {
+  if (ex) return;
+  let r;
+  try {
+    r = await WebAssembly.instantiate(module || bin());
+  } catch (e) {
+    blocked(e, module);
+  }
+  // A Module gives an Instance, bytes give { module, instance }.
+  ready(compiled(module) ? r : r.instance);
 }
 
 /** Synchronous init. Browsers allow it here because the module is small. */
-export function initSync() {
-  if (!ex) ready(new WebAssembly.Instance(new WebAssembly.Module(bin())));
+export function initSync(module) {
+  if (ex) return;
+  try {
+    module = compiled(module) ? module : new WebAssembly.Module(module || bin());
+  } catch (e) {
+    blocked(e, module);
+  }
+  ready(new WebAssembly.Instance(module));
 }
 
 // Makes sure `n` bytes past base exist. The memory only grows, so a big

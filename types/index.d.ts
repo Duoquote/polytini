@@ -1,5 +1,18 @@
 // Types for every Google-format entry point of @duoquote/polytini: the
 // default (web), node, bun, deno and wasm entries share this API.
+/**
+ * Encode and decode Google encoded polylines. The default entry, `/web`,
+ * `/browser` and `/node` all have this API; the default picks the fastest
+ * build for your runtime.
+ *
+ * ```js
+ * import { encode, decode } from '@duoquote/polytini';
+ * encode([[38.5, -120.2], [40.7, -120.95]]); // '_p~iF~ps|U_ulLnnqC'
+ * decode('_p~iF~ps|U_ulLnnqC', { precision: 5 }); // [[38.5, -120.2], [40.7, -120.95]]
+ * ```
+ *
+ * @module
+ */
 
 /** A point as [lat, lng], or [lng, lat] with `order: 'lnglat'`. More values with `dimensions`. */
 export type Point = [number, number, ...number[]];

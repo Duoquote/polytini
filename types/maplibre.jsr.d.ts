@@ -3,6 +3,18 @@
 // the specifications are described structurally here, by the methods and
 // fields this module uses. The npm package's maplibre.d.ts uses maplibre-gl's
 // own types.
+/**
+ * MapLibre GL JS: encoded polylines as GeoJSON sources and line layers. It
+ * only calls addSource, addLayer and getSource on the map you pass.
+ *
+ * ```js
+ * import { addPolylineLayer } from '@duoquote/polytini/maplibre';
+ * map.on('load', () => addPolylineLayer(map, 'route', route.geometry, { precision: 6 }));
+ * ```
+ *
+ * @module
+ */
+
 import type { Options } from './index.d.ts';
 import type { FeatureCollection, LineString, GeoJsonProperties } from './geojson.jsr.d.ts';
 

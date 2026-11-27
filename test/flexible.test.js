@@ -1,19 +1,11 @@
 // Tests for the HERE Flexible Polyline entry (src/flexible.js): the official
 // test data, an independent BigInt version of the spec, and agreement with
 // the official @here/flexpolyline package.
-import { test, eq, near, throws, ok } from './lib.js';
-import { createRequire } from 'node:module';
+import { test, eq, near, throws, ok, text } from './lib.js';
+import here from '@here/flexpolyline';
 import * as F from '../src/flexible.js';
 import { PolylineError } from '../src/core.js';
 
-const here = createRequire(import.meta.url)('@here/flexpolyline');
-
-async function text(path) {
-  const url = new URL(path, import.meta.url);
-  if (globalThis.Deno) return Deno.readTextFile(url);
-  const { readFile } = await import('node:fs/promises');
-  return readFile(url, 'utf8');
-}
 const lines = async (name) => (await text(`fixtures/flexible/${name}.txt`)).split(/\r?\n/).filter(Boolean);
 
 // mulberry32, the same PRNG the benchmark fixtures use.

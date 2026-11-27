@@ -1,6 +1,6 @@
 {
   "name": "@duoquote/polytini",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Encode and decode Google encoded polylines. Small, strict by default, with fast paths for Node, Bun and Deno.",
   "keywords": [
     "polyline",
@@ -27,6 +27,10 @@
   ],
   "exports": {
     ".": {
+      "workerd": {
+        "types": "./types/index.d.ts",
+        "default": "./src/deno.js"
+      },
       "browser": {
         "types": "./types/index.d.ts",
         "default": "./src/browser.js"
@@ -65,6 +69,7 @@
       "types": "./types/wasm.d.ts",
       "default": "./src/wasm.js"
     },
+    "./polytini.wasm": "./wasm/polytini.wasm",
     "./turf": {
       "require": {
         "types": "./dist/types/turf.d.cts",
@@ -165,6 +170,7 @@
     "build:wasm": "node scripts/build-wasm.js",
     "prepack": "node scripts/build.js",
     "test": "node test/run.js",
+    "test:workers": "node scripts/test-workers.js",
     "test:bun": "bun test/run.js",
     "test:deno": "deno run --allow-read --allow-env --allow-run --allow-write test/run.js",
     "test:browser": "node test/browser.js",

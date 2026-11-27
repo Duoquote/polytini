@@ -2,6 +2,19 @@
 // format. Each one is a plain options object for encode, decode,
 // encodeFlat, decodeFlat, toGeoJSON and fromGeoJSON. See src/presets.js for
 // the sources behind every value.
+/**
+ * Option presets for routing engines and APIs that use the Google format:
+ * OSRM, Valhalla, GraphHopper, Mapbox, Strava and others. Each one is a plain
+ * options object.
+ *
+ * ```js
+ * import { decode } from '@duoquote/polytini';
+ * import { osrm6 } from '@duoquote/polytini/presets';
+ * decode(route.geometry, osrm6); // [[lng, lat], ...]
+ * ```
+ *
+ * @module
+ */
 
 /** A 2D preset: precision and the order of the tuples you pass and get back. */
 export interface Preset2D<P extends number = number, O extends 'latlng' | 'lnglat' = 'latlng' | 'lnglat'> {

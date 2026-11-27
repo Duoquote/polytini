@@ -3,6 +3,19 @@
 // and LineString classes and returns a subclass of the Polyline class you
 // passed, with its type. The npm package's openlayers.d.ts uses ol's own
 // types.
+/**
+ * OpenLayers: a faster drop-in for ol/format/Polyline. You pass ol's
+ * classes in, so polytini doesn't import ol.
+ *
+ * ```js
+ * import Polyline from 'ol/format/Polyline.js';
+ * import LineString from 'ol/geom/LineString.js';
+ * import { createPolylineFormat } from '@duoquote/polytini/openlayers';
+ * const format = new (createPolylineFormat({ Polyline, LineString }))({ factor: 1e6 });
+ * ```
+ *
+ * @module
+ */
 
 /** ol/format/Polyline's constructor options. */
 export interface Options {

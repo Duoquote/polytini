@@ -61,6 +61,7 @@ The package picks an entry point by export condition, so you don't import these 
 
 | Condition | File | What's different |
 |---|---|---|
+| `workerd` | `src/deno.js` | Cloudflare Workers; the same file as deno |
 | `bun` | `src/bun.js` | the same as node |
 | `deno` | `src/deno.js` | byte buffers through TextEncoder and TextDecoder |
 | `browser` | `src/browser.js` | the core, but long lines encode through TextDecoder |

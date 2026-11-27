@@ -1,5 +1,17 @@
 // Types for @duoquote/polytini/flexible, HERE's Flexible Polyline format
 // (version 1). Separate from the Google-format entry points.
+/**
+ * HERE's Flexible Polyline format (version 1), with the same encode and
+ * decode shapes as @here/flexpolyline. Separate from the Google-format entries.
+ *
+ * ```js
+ * import { decode } from '@duoquote/polytini/flexible';
+ * decode('BFoz5xJ67i1B1B7PzIhaxL7Y').polyline; // [[50.10228, 8.69821], ...]
+ * ```
+ *
+ * @module
+ */
+
 import type { ErrorCode } from './index.d.ts';
 
 /** Third dimension types, as stored in the header. */

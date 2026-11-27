@@ -25,7 +25,7 @@ npm install @duoquote/polytini      # or pnpm add, yarn add, bun add
 deno add jsr:@duoquote/polytini
 ```
 
-ESM and CommonJS, with TypeScript types. Node 22 or newer. Not on npm or JSR yet; [RELEASING.md](RELEASING.md) covers the first publish.
+ESM and CommonJS, with TypeScript types. Node 22 or newer, Bun, Deno, browsers and Cloudflare Workers.
 
 ## Usage
 
@@ -100,7 +100,20 @@ None of them import their map library; you pass it in or use what they return. E
 - The precision isn't stored in the string. A `polyline6` string decoded at 5 gives coordinates ten times too big, with no error.
 - Strict mode throws on invalid characters, cut-off strings and NaN coordinates. Pass `strict: false` to never throw.
 - `/wasm` only pays off for typed arrays on long lines and for many lines in one call (`decodeMany`). For `[lat, lng]` arrays the default entry is as fast or faster. Numbers: [docs/platforms.md](docs/platforms.md#wasm).
-- Each runtime gets its own entry through package.json conditions (`node`, `bun`, `deno`, `browser`). Why each one exists: [docs/platforms.md](docs/platforms.md).
+- Each runtime gets its own entry through package.json conditions (`node`, `bun`, `deno`, `workerd`, `browser`). Why each one exists: [docs/platforms.md](docs/platforms.md).
+
+## Cloudflare Workers
+
+The default import works as is. For `/wasm`, Workers won't compile WebAssembly at runtime, so import the `.wasm` file and pass it in:
+
+```js
+import { init, decodeMany } from '@duoquote/polytini/wasm';
+import wasm from '@duoquote/polytini/polytini.wasm';
+
+await init(wasm);
+```
+
+`npm run test:workers` runs the tests in workerd locally. More, and how fast it is there: [docs/platforms.md](docs/platforms.md#cloudflare-workers).
 
 ## CLI
 

@@ -56,6 +56,8 @@ npm publish --dry-run
 node scripts/check-jsr-types.js
 DENO_NO_PACKAGE_JSON=1 deno publish --dry-run --allow-dirty
 DENO_NO_PACKAGE_JSON=1 deno doc --lint $(node -p 'Object.values(require("./jsr.json").exports).join(" ")')
+DENO_NO_PACKAGE_JSON=1 node scripts/check-jsr-docs.js
+npm run test:workers
 node test/smoke.js
 ```
 

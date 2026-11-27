@@ -58,6 +58,10 @@ export function throws(fn, code, message = '') {
 }
 
 const here = (p) => new URL(p, import.meta.url).href;
+// In a Worker (scripts/test-workers.js) there is no file system and no
+// dynamic import of files, so the Worker sets this first: the entry points
+// it bundled, and the fixture files by path relative to test/.
+const bundled = () => globalThis.__polytiniTest;
 let cached;
 /**
  * Every Google-format entry point that can load on this runtime, each with
@@ -65,6 +69,7 @@ let cached;
  */
 export async function entries() {
   if (cached) return cached;
+  if (bundled()) return (cached = bundled().entries);
   const list = [];
   for (const name of ['web', 'browser', 'node', 'bun', 'deno']) list.push({ name, api: await import(here(`../src/${name}.js`)) });
   // The node entry's appending decode, which only V8 12 uses on its own.
@@ -77,10 +82,26 @@ export async function entries() {
   return (cached = list);
 }
 
-/** Reads a JSON file relative to test/. */
-export async function json(path) {
+/** Reads a text file relative to test/. */
+export async function text(path) {
+  if (bundled()) {
+    if (!(path in bundled().files)) throw new Error(`${path} is not in the Worker's files`);
+    return bundled().files[path];
+  }
   const url = new URL(path, import.meta.url);
-  if (globalThis.Deno) return JSON.parse(await Deno.readTextFile(url));
+  if (globalThis.Deno) return Deno.readTextFile(url);
   const { readFile } = await import('node:fs/promises');
-  return JSON.parse(await readFile(url, 'utf8'));
+  return readFile(url, 'utf8');
+}
+
+/** Reads a JSON file relative to test/. */
+export const json = async (path) => JSON.parse(await text(path));
+
+/** The names of the files in a directory relative to test/, like 'fixtures/vectors/'. */
+export async function list(dir) {
+  if (bundled()) return Object.keys(bundled().files).filter((p) => p.startsWith(dir) && !p.slice(dir.length).includes('/')).map((p) => p.slice(dir.length));
+  const url = new URL(dir, import.meta.url);
+  if (globalThis.Deno) return [...Deno.readDirSync(url)].map((e) => e.name);
+  const { readdirSync } = await import('node:fs');
+  return readdirSync(url);
 }

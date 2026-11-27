@@ -2,6 +2,19 @@
 // @types/google.maps reference, so the Maps shapes are described
 // structurally here: anything with lat() and lng() is a LatLng. The npm
 // package's google.d.ts uses the real google.maps types.
+/**
+ * Google Maps JavaScript API helpers: decodePath and encodePath with the
+ * signatures of google.maps.geometry.encoding, without loading the geometry
+ * library.
+ *
+ * ```js
+ * import { decodePath } from '@duoquote/polytini/google';
+ * new google.maps.Polyline({ path: decodePath(route.polyline.encodedPolyline), map });
+ * ```
+ *
+ * @module
+ */
+
 import type * as P from './index.d.ts';
 import type { Options, Point } from './index.d.ts';
 

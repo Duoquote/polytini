@@ -9,13 +9,11 @@
 // purpose where the source expects something else; that is what is checked.
 // Cases that fit test/reference.js (2D, integer precision, valid options) are
 // also checked against it, so the vectors and the oracle agree.
-import { readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { test, eq, near, throws, ok, entries, json, AssertionError } from './lib.js';
+import { test, eq, near, throws, ok, entries, json, list, AssertionError } from './lib.js';
 import * as ref from './reference.js';
 
 const DIR = 'fixtures/vectors/';
-const files = readdirSync(fileURLToPath(new URL(DIR, import.meta.url)))
+const files = (await list(DIR))
   .filter((f) => f.endsWith('.json'))
   .sort();
 

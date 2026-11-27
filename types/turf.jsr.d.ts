@@ -2,6 +2,18 @@
 // GeoJSON types come from geojson.jsr.d.ts and Turf's Id and AllGeoJSON are
 // written out here. They have the same shapes as @types/geojson's and
 // @turf/helpers', which the npm package's turf.d.ts uses.
+/**
+ * Turf.js interop: decode straight to GeoJSON Features in Turf's shape, and
+ * encode whatever Turf returns. No Turf code is imported.
+ *
+ * ```js
+ * import { toFeature, fromGeoJSON } from '@duoquote/polytini/turf';
+ * const km = turf.length(toFeature(route.geometry, { precision: 6 }));
+ * ```
+ *
+ * @module
+ */
+
 import type { Options } from './index.d.ts';
 import type { Feature, FeatureCollection, Geometry, LineString, Polygon, GeoJsonProperties } from './geojson.jsr.d.ts';
 

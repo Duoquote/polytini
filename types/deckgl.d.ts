@@ -1,6 +1,19 @@
 // Types for @duoquote/polytini/deckgl. The results are plain objects in
 // deck.gl's binary data shape, so they need no deck.gl types: they can be
 // passed as `data` to PathLayer, TripsLayer and SolidPolygonLayer.
+/**
+ * deck.gl: encoded polylines straight into deck.gl's binary data format,
+ * for PathLayer, TripsLayer and SolidPolygonLayer. No deck.gl code is imported.
+ *
+ * ```js
+ * import { binaryPaths } from '@duoquote/polytini/deckgl';
+ * const data = binaryPaths(routes.map((r) => r.geometry), { precision: 6 });
+ * new PathLayer({ id: 'routes', data, _pathType: 'open', getWidth: 3 });
+ * ```
+ *
+ * @module
+ */
+
 import type { Options } from './index.d.ts';
 
 /** Options for binaryPolygons: polytini's options plus float32. */
