@@ -37,15 +37,17 @@ const latin1Slice = !g.Deno && g.process?.versions?.node && g[ArrayBuffer.name.s
 // bytes (encode 7 to 31% faster in paired runs); elsewhere latin1 is.
 const te = new TextEncoder(), td = new TextDecoder(g.Deno ? 'utf-8' : 'latin1');
 
-// The inlined base64 to bytes, once per init. On a cold start (a fresh
-// process timing the first call) Uint8Array.fromBase64 took 0.03 to 0.04 ms
-// on Node 25 and 26 and Deno and 0.10 on Bun, against 0.12 to 0.31 (1.38 on
-// Bun) for Uint8Array.from(atob(b), fn). Node 24 doesn't have it, and a
-// plain loop over atob took 0.08 ms there against 0.16.
-const bin = (b) => {
-  if (Uint8Array.fromBase64) return Uint8Array.fromBase64(b);
-  const s = atob(b), u = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+// The inlined hex to bytes, once per init. Hex and not base64 because two
+// characters per byte keep the same bytes as the same text, so gzip finds
+// what the two modules share: both together gzip to about 1,020 bytes in
+// hex and 1,320 in base64. Uint8Array.fromHex where the runtime has it
+// (where fromBase64 is too), a plain loop where it doesn't (Node 24). For a
+// character code c of 0-9 or a-f, (c & 15) + (c >> 6) * 9 is its value.
+const hex = (c) => (c & 15) + (c >> 6) * 9;
+const bin = (h) => {
+  if (Uint8Array.fromHex) return Uint8Array.fromHex(h);
+  const u = new Uint8Array(h.length / 2);
+  for (let i = 0; i < u.length; i++) u[i] = (hex(h.charCodeAt(2 * i)) << 4) | hex(h.charCodeAt(2 * i + 1));
   return u;
 };
 const ready = (instance) => {
