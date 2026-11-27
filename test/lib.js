@@ -77,9 +77,77 @@ export async function entries() {
   const { fast } = await import(here('../src/fast.js'));
   list.push({ name: 'node (appending)', api: { ...list.find((e) => e.name == 'node').api, ...fast(Buffer, 0) } });
   const wasm = await import(here('../src/wasm.js'));
-  await wasm.init();
+  wasmBuiltins.on = await watch(() => wasm.init());
   list.push({ name: 'wasm', api: wasm });
+  // The same entry without string builtins, which is what Bun, Firefox,
+  // Safari, workerd and Node 22.12 to 22.18 run: a fresh copy, initialized
+  // while compiling with { builtins } throws.
+  const plain = await freshWasm();
+  const { Module } = WebAssembly;
+  WebAssembly.Module = function (b, o) {
+    if (o?.builtins) throw new WebAssembly.CompileError('no string builtins (test)');
+    return new Module(b, o);
+  };
+  WebAssembly.Module.prototype = Module.prototype;
+  try {
+    await plain.init();
+  } finally {
+    WebAssembly.Module = Module;
+  }
+  list.push({ name: 'wasm (no string builtins)', api: plain });
   return (cached = list);
+}
+
+/** Whether the wasm entry in entries() runs on string builtins. */
+export const wasmBuiltins = { on: false };
+
+// Runs fn and says whether it instantiated a module compiled with
+// { builtins }.
+async function watch(fn) {
+  const { Module, Instance } = WebAssembly;
+  let on = false;
+  const withBuiltins = new WeakSet();
+  WebAssembly.Module = function (b, o) {
+    const m = new Module(b, o);
+    if (o?.builtins) withBuiltins.add(m);
+    return m;
+  };
+  WebAssembly.Module.prototype = Module.prototype;
+  WebAssembly.Instance = function (m, i) {
+    const x = new Instance(m, i);
+    if (withBuiltins.has(m)) on = true;
+    return x;
+  };
+  WebAssembly.Instance.prototype = Instance.prototype;
+  try {
+    await fn();
+  } finally {
+    Object.assign(WebAssembly, { Module, Instance });
+  }
+  return on;
+}
+
+/**
+ * A fresh copy of src/wasm.js, with its own instance: the instance is module
+ * state, and Bun returns the same module for ?query imports.
+ */
+let copies = 0;
+export async function freshWasm() {
+  // A query gives a new module on Node and Deno, and keeps the file's path,
+  // so coverage counts it as src/wasm.js.
+  if (!globalThis.Bun) return import(here(`../src/wasm.js?copy=${++copies}`));
+  const { cpSync, mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+  const dir = mkdtempSync(join(tmpdir(), 'polytini-wasm-'));
+  cpSync(new URL('../src/', import.meta.url), dir, { recursive: true });
+  writeFileSync(join(dir, 'package.json'), '{"type":"module"}');
+  try {
+    return await import(pathToFileURL(join(dir, 'wasm.js')).href);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /** Reads a text file relative to test/. */

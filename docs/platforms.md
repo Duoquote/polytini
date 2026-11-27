@@ -11,9 +11,86 @@ Each entry only has its own code where it measured faster than the portable core
 - Cloudflare Workers (the `workerd` condition, `src/deno.js`): the Deno entry, since it uses nothing Deno-only. Wrangler picked `src/browser.js` before this condition existed, and the Deno entry decoded faster than that in every run I did in workerd. It keeps the 512-point switch for encoding: starting at 16 made the real-world lines 6% slower there. See [Workers](#cloudflare-workers).
 - Everything else (`src/web.js`): the core alone. It uses no Node, Bun or Deno globals.
 
+## Module formats and tools
+
+The package is ESM, with a CommonJS build in `dist/` for whatever can't load ESM with `require()`. The root export's conditions, in the order they're checked:
+
+| Condition | File | Who matches it |
+|---|---|---|
+| `workerd` | `src/deno.js` | Cloudflare Workers (wrangler) |
+| `react-native` | `src/web.js` | Metro on iOS and Android. The Node entry's `node:buffer` doesn't exist there |
+| `browser` | `src/browser.js`, or `dist/web.cjs` for `require` | Bundlers for the web, Jest's jsdom environment, Metro on web |
+| `bun` | `src/bun.js` | Bun, for `import` and `require()` |
+| `module-sync` | `src/node.js` | Node 22.12 and newer, for `import` and `require()` |
+| `require` | `dist/node.cjs` | Node 22.0 to 22.11, Jest, Deno's `createRequire`, Yarn PnP |
+| `deno`, `node`, `default` | `src/deno.js`, `src/node.js`, `src/web.js` | |
+
+Inside `browser`, `module-sync` and `module` come before `require`, so webpack and esbuild keep bundling `src/browser.js` for `require()` as they did before 0.1.5, and only tools that can't load ESM there (Jest) get `dist/web.cjs`. That's `web.cjs` and not a browser CommonJS build because Jest's jsdom environment has no `TextEncoder` global. Every subpath has the same `bun` and `module-sync` conditions ahead of its `require`, and `/wasm` has a CommonJS build (`dist/wasm.cjs`) too.
+
+So on Node 22.12 and newer, in Bun and in Electron's main process, `require()` and `import` load the same files, and there's one `PolylineError` class for every subpath. Where `require()` gets `dist/` instead, each subpath is its own bundle with its own copy of the class, so check `err.name === 'PolylineError'` or `err.code` there.
+
+Node 22.12.x prints `ExperimentalWarning: CommonJS module ... is loading ES Module ... using require()` once when you `require()` polytini, because that's the version where `require()` of ESM stopped needing a flag. 22.13 and newer don't print it. The code works the same either way; update Node or pass `--disable-warning=ExperimentalWarning` to hide it.
+
+For tools that ignore `exports`, the package has `main` (`dist/node.cjs`), `module` (`src/web.js`), `browser` (`src/browser.js`) and `react-native` (`src/web.js`) fields, and a folder per subpath with its own `package.json` (`turf/package.json` and so on, written by `scripts/build.js`). That's what Parcel's defaults, TypeScript's `node10` resolution and React Native before 0.79 read.
+
+`dist/polytini.iife.js` is the browser entry as one minified script that sets a global `polytini` (5,382 bytes, 2,480 gzipped). See [CDNs](#cdns) for how to load it.
+
+`node test/tools/matrix.mjs` packs the package, installs the tarball and checks what each tool picks and that the result runs. CI runs the `--quick` part (Jest, Parcel, Metro, TypeScript, Node itself and the IIFE). From the full run on 27 November 2026, 0.1.4 against 0.1.5:
+
+| Check | 0.1.4 | 0.1.5 |
+|---|---|---|
+| Jest 30.5 CommonJS, node environment | `dist/node.cjs` | `dist/node.cjs` |
+| Jest CommonJS, jsdom environment | fails: gets `src/browser.js` (ESM) | `dist/web.cjs` |
+| Jest CommonJS, `require('/wasm')` | fails: ESM only | `dist/wasm.cjs` |
+| Jest ESM, Vitest 4.1 (node and jsdom) | ok | ok |
+| webpack 5.113 web, node, web `require()`, `/wasm` | ok | ok, the same files |
+| Rollup 4.68 with node-resolve, esbuild (browser, node, neutral), Vite 8.4 | ok | ok, the same files |
+| Parcel 2.16 defaults | fails: ignores `exports`, can't find `/turf` | `src/browser.js` |
+| Metro 0.84, iOS and Android, `import` | `src/web.js` | `src/web.js` |
+| Metro, iOS and Android, `require()` | fails: `dist/node.cjs` imports `node:buffer` | `src/web.js` |
+| Metro without package exports (React Native before 0.79) | fails: same | `src/web.js` |
+| Metro on web, `import` / `require()` | `src/browser.js` | `src/browser.js` / `dist/web.cjs` |
+| TypeScript `node10`, 5.9 and 6.0 | fails on subpaths | ok (TypeScript 7 removed `node10`) |
+| TypeScript `node16`, a CommonJS file that imports `/wasm` | fails: no CommonJS types for `/wasm` | ok on 5.9, 6.0 and 7 |
+| TypeScript `bundler`, 5.9, 6.0 and 7 | ok | ok |
+| TypeScript `classic` | fails | fails (removed in TypeScript 6; can't be fixed) |
+| Node 22.0 and 22.11, `require()` | `dist/node.cjs`; `/wasm` throws `ERR_REQUIRE_ESM` | `dist/node.cjs`; `/wasm` works |
+| Node 22.12 to 26, `require()` | `dist/node.cjs`, two `PolylineError` classes | `src/node.js`, one class |
+| Bun 1.4.3, `require()` | `dist/node.cjs`, two classes | `src/bun.js`, one class |
+| Electron 45.5 main process | `dist/node.cjs`, two classes | `src/node.js`, one class |
+| Deno 2.5 `createRequire` | `dist/node.cjs` | `dist/node.cjs` |
+| `test/smoke.js`: npm, pnpm, Yarn 4 PnP, Yarn 1, Bun, Deno | 6 of 6 | 6 of 6 |
+
+React Native is checked with Metro's resolver, not on a device. Hermes has no WebAssembly, so `/wasm` can't run there.
+
+## CDNs
+
+Without a bundler, import it from a CDN that serves ESM:
+
+```html
+<script type="module">
+  import { encode, decode } from 'https://esm.sh/@duoquote/polytini@0.1.5';
+  // or https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5/+esm
+  // or https://unpkg.com/@duoquote/polytini@0.1.5?module
+</script>
+```
+
+On jsDelivr, keep the `/+esm`. The bare URL (`https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5`) serves `src/browser.js` as is, and its relative imports don't resolve from a URL without a trailing slash, so `import` fails. Subpaths work the same way: `https://esm.sh/@duoquote/polytini@0.1.5/wasm`, `https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5/wasm/+esm`, or the file itself from unpkg, `https://unpkg.com/@duoquote/polytini@0.1.5/src/wasm.js`.
+
+For a plain `<script>` tag, use the IIFE build. It sets a global `polytini` with the browser entry's functions:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5/dist/polytini.iife.js"></script>
+<script>
+  polytini.decode('_p~iF~ps|U_ulLnnqC_mqNvxq`@'); // [[38.5, -120.2], [40.7, -120.95], [43.252, -126.453]]
+</script>
+```
+
+`node test/tools/matrix.mjs --cdn <version>` imports each of these URLs in headless Chrome and checks the results.
+
 ## WASM
 
-There's an opt-in WebAssembly build: a hand-written WAT module that assembles to 906 bytes, inlined as base64 so it loads the same way in browsers, bundlers, Node, Bun and Deno. Nothing loads it unless you import it:
+There's an opt-in WebAssembly build: a hand-written WAT module that assembles to 912 bytes, and since 0.1.5 a second one of 835 bytes that uses JS String Builtins (below). Both are inlined as base64 so they load the same way in browsers, bundlers, Node, Bun and Deno. Nothing loads them unless you import `/wasm`:
 
 ```js
 import { init, decodeFlat, decodeMany, encodeMany } from '@duoquote/polytini/wasm';
@@ -26,10 +103,10 @@ encodeMany(listOfLines);                        // string[]
 
 It has the main entry's whole API, plus `decodeMany` and `encodeMany`. Where it helps:
 
-- typed arrays on long lines (`decodeFlat`, `encodeFlat` from about 1,000 points)
+- typed arrays on long lines (`decodeFlat`, `encodeFlat` from about 1,000 points), and on V8 at every length (see [JS String Builtins](#js-string-builtins))
 - many lines in one call (`decodeMany`), where the cost of calling into WASM is paid once instead of per line
 
-Where it doesn't, it hands the call to the JavaScript core, because that measured faster on every runtime: decoding to `[lat, lng]` arrays (building the arrays is most of the work, and reading the numbers back out of WASM memory only added to it) and lines under about 30 points (calling in and moving the data costs more than the work).
+Where it doesn't, it hands the call to the JavaScript core, because that measured faster on every runtime: decoding to `[lat, lng]` arrays (building the arrays is most of the work, and reading the numbers back out of WASM memory only added to it) and, where the string builtins aren't used, lines under about 30 points (calling in and moving the data costs more than the work).
 
 What made the difference, from profiling each step on Node, Bun and Deno:
 
@@ -57,6 +134,37 @@ And the batch calls, on the 1000 real-world lines, against the JS way to get the
 | `encodeMany` vs `encode` per line | 0.61 | 0.79 | 0.79 | 0.75 |
 
 Cells moved about 30% between rounds, so read the small differences as even. The clear results: the biggest gains were in Deno, where the old build was 2 to 3 times slower than JS; `decodeMany` is the one call where WASM wins by a lot, except in Chrome; and `encodeMany` loses everywhere, because making one string per line is the expensive part and it doesn't get cheaper in a batch. The full tables are in the benchmark's [results](https://github.com/Duoquote/polyline-benchmark/blob/main/docs/results.md).
+
+### JS String Builtins
+
+Since 0.1.5, `init()` also compiles `wasm/polytini-strings.wat` with `{ builtins: ['js-string'] }`. It has the same decode and encode loops, but strings go in and out as JS strings: decode copies the string once into a Wasm GC `i16` array with `intoCharCodeArray`, and encode writes characters into that array and makes the string with `fromCharCodeArray`. Nothing goes through `TextEncoder`, `latin1Slice` or `TextDecoder`, which is most of the cost of a short call.
+
+Where it's used:
+
+- Only on V8: Chrome 130 and newer, Node 22.19+ and 24+, Deno. Bun has the builtins too, but decoding was 4 to 7% slower there with them, and Firefox and Safari haven't been measured, so they keep the other module. So do Node 22.12 to 22.18, where the builtins need a flag, and Cloudflare Workers, which compile an imported `.wasm` without them. `init(module)` never tries it.
+- `decodeFlat` at every length. The 128-character cutoff to the JS core is gone there, because this was faster than the JS core from 10 points up.
+- `encode` and `encodeFlat` below 64 points on Node 24 and 26, below 256 in Chrome and Deno, and at every length on Node 22. Above that, one `latin1Slice` or `TextDecoder` call makes the string faster than `fromCharCodeArray`. `encodeMany` takes the same cutoff on the average line length.
+- `decodeMany` in Chrome, Deno and Node 22, one call per line. On Node 24 and 26 that was 4 to 8% slower than the other module's one call over the joined lines, so it stays there.
+
+Detection is one compile with the option: an engine without the builtins ignores it, the `wasm:js-string` imports are then missing, and instantiating throws. The test suite runs every check on both modules, and on which one each runtime gets.
+
+0.1.5's `/wasm` against 0.1.4's, time per call, new divided by old. Paired runs with `bench/ab.js` from the research repo: 10 rounds of fresh processes (a fresh Chrome context for Chrome), pinned to 4 cores at high priority, fastest of 40 samples. "same" means the 95% interval included 1.00. A against itself gave 0.93 to 1.09 per cell. The Node 24 and 26 `encode` rows are from a second run after the builtins path for `encode` got its own function, which took `encode` at 100 points from 1.02 to 1.03 down to 1.00 to 1.01:
+
+| | Node 22 | Node 24 | Node 26 | Bun 1.4.3 | Deno 2.5 | Chrome 156 |
+|---|--:|--:|--:|--:|--:|--:|
+| `decodeFlat`, 10 points | same | 0.88 | 0.89 | same | 0.88 | 0.91 |
+| `decodeFlat`, 100 points | same | 0.86 | 0.76 | same | 0.75 | 0.74 |
+| `decodeFlat`, real-world lines | same | same | same | 1.03 | same | 0.80 |
+| `decodeFlat`, 100,000 points | same | 1.03 | same | 1.03 | 1.03 | 0.82 |
+| `decodeMany`, real-world lines | same | 1.04 | same | 1.03 | same | 0.87 |
+| `encode`, 10 points | 0.36 | 0.31 | 0.35 | same | 0.45 | 0.48 |
+| `encode`, 100 points | 0.81 | same | 1.01 | same | 0.67 | 0.84 |
+| `encode`, real-world lines | same | same | same | same | same | 0.94 |
+| `encode`, 10,000 points | same | same | same | 1.01 | same | same |
+| `encodeFlat`, 100,000 points | 0.89 | same | same | same | same | same |
+| `encodeMany`, real-world lines | same | same | same | same | same | same |
+
+The 1.03 and 1.04 cells are the 64-bit sums (see the changelog): the old module added coordinates in 32 bits, which wrapped past 2^31, and real lines get there at precision 8 and up. The fix costs 2 to 4% on long decodes through that module, which is what Bun, and Node 24 and 26 for `decodeMany`, still use. The Node 22 runs were the noisiest, so most of its cells say "same" even where the median moved by 5 to 10%. The research repo has the commands and every round.
 
 What didn't: a Rust version that reads 8 bytes at a time with 64-bit tricks (SWAR) was 2.7 KB and 10 to 40% slower than the byte loop. Each value starts where the last one ended, and typical GPS values are 1 to 3 characters, so a byte loop with a well-predicted branch is already about 3 cycles per character. SIMD runs into the same chain, so I didn't ship it.
 
@@ -87,6 +195,34 @@ Speed, from one quick check on my machine, not on Cloudflare's servers: the same
 
 Encoding and `/wasm` are about the same as Node. Decoding was close to Node in some runs and up to 1.8 times slower in others, with nothing changed in between; I haven't found out why. It's not in the main benchmark.
 
+## Sending many lines
+
+Encoded polylines are already a compact format, and gzip on top still helps for a big batch. `CompressionStream('gzip')` works in every browser, Node, Bun, Deno and Workers, so neither side needs a library:
+
+```js
+import { encode } from '@duoquote/polytini';
+
+const gz = new Blob([JSON.stringify(lines.map((line) => encode(line)))]).stream().pipeThrough(new CompressionStream('gzip'));
+await fetch('/routes', { method: 'POST', body: await new Response(gz).blob(), headers: { 'Content-Encoding': 'gzip' } });
+
+// and back
+const res = await fetch('/routes.json.gz');
+const encoded = await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).json();
+```
+
+Sizes of the benchmark's inputs in a few forms, raw and with gzip (level 6) and Brotli (level 5):
+
+| | raw | gzip | Brotli |
+|---|--:|--:|--:|
+| 1000 real-world lines (146,330 points), polylines as a JSON array | 457.9 KB | 311.9 KB | 313.5 KB |
+| the same coordinates as JSON numbers | 2,827.8 KB | 688.8 KB | 674.1 KB |
+| the same as Float64Array bytes | 2,286.4 KB | 1,050.9 KB | 706.9 KB |
+| the same as Int32 deltas at 1e5 | 1,143.2 KB | 389.5 KB | 362.3 KB |
+| one 10,000-point track, polyline | 26.6 KB | 12.7 KB | 12.2 KB |
+| the same as Int32 deltas at 1e5 | 78.1 KB | 14.4 KB | 13.3 KB |
+
+So gzipped polylines are the smallest of these, smaller even than the binary forms with Brotli. Brotli gains almost nothing over gzip on polylines, and `CompressionStream` only has it on Node, Bun and Workers (not in Chrome 156 or Deno 2.5), so gzip is the one to use. If a server already compresses its responses, sending the polylines as they are gets the same result.
+
 ## Size
 
 Minified and gzipped with esbuild and zlib level 9, from `node scripts/size.js`, which CI also runs with a budget per entry:
@@ -99,7 +235,7 @@ Minified and gzipped with esbuild and zlib level 9, from `node scripts/size.js`,
 | node | 5378 B | 2621 B |
 | bun | 5378 B | 2621 B |
 | deno | 5497 B | 2515 B |
-| wasm (JS glue + inlined .wasm) | 9414 B | 4550 B |
+| wasm (JS glue + both inlined modules) | 12676 B | 5879 B |
 | leaflet | 4039 B | 1989 B |
 | turf | 4803 B | 2233 B |
 | presets | 818 B | 284 B |
@@ -111,7 +247,7 @@ Minified and gzipped with esbuild and zlib level 9, from `node scripts/size.js`,
 | deckgl | 4129 B | 2039 B |
 | cli | 8074 B | 3839 B |
 
-polytini is bigger than most polyline libraries, which are about 0.6 KB gzipped. The extra goes into strict-mode errors, the exact slow path for precision 7 and up, objects, dimensions and both orders. The browser entry adds 278 bytes over the minimal web build for its TextDecoder encode; import `@duoquote/polytini/web` if you'd rather have the smaller one. The WASM entry is the biggest because it carries both the module and the JS core it hands short lines and `[lat, lng]` decoding to.
+polytini is bigger than most polyline libraries, which are about 0.6 KB gzipped. The extra goes into strict-mode errors, the exact slow path for precision 7 and up, objects, dimensions and both orders. The browser entry adds 278 bytes over the minimal web build for its TextDecoder encode; import `@duoquote/polytini/web` if you'd rather have the smaller one. The WASM entry is the biggest because it carries both modules and the JS core it hands `[lat, lng]` decoding and anything unusual to. The string-builtins module added about 1.3 KB gzipped to it in 0.1.5.
 
 ## Speed
 

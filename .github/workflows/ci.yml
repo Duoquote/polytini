@@ -108,8 +108,8 @@ jobs:
         run: node scripts/size.js
       - name: llms-full.txt is generated from the current types and docs
         run: node scripts/llms.js --check
-      - name: The committed .wasm matches the .wat
-        run: node scripts/build-wasm.js && git diff --exit-code -- wasm/polytini.wasm src/wasm-bytes.js
+      - name: Both committed .wasm files match their .wat
+        run: node scripts/build-wasm.js && git diff --exit-code -- wasm/polytini.wasm wasm/polytini-strings.wasm src/wasm-bytes.js
       - name: Coverage
         run: npx c8 --reporter=text-summary --include='src/**' node test/run.js
       - name: Integration types against the real libraries
@@ -143,6 +143,23 @@ jobs:
           deno-version: v2.x
       - run: npm ci
       - run: node test/smoke.js
+
+  # The packed package in the tools that pick an entry their own way: Jest
+  # (node and jsdom), Parcel's defaults, Metro's resolver, TypeScript node10,
+  # node16 and bundler, require() and import on this Node, and the IIFE.
+  # The full matrix (webpack, Rollup, esbuild, Vite, Vitest, Electron, other
+  # runtimes) runs by hand: node test/tools/matrix.mjs.
+  tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm install --prefix test/tools --omit=dev --no-audit --no-fund
+      - run: node test/tools/matrix.mjs --quick
 
   # Optional: regenerates the PostGIS parity fixtures against a real PostGIS
   # and fails if they changed. Manual runs only, so a PostGIS image update

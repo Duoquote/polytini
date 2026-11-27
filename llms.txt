@@ -26,6 +26,8 @@ npm i @duoquote/polytini
 
 ESM and CommonJS, with TypeScript types. Node 22 or newer, Bun, Deno, browsers and Cloudflare Workers. Import the package name or one of the subpaths below, never a file under `src/` or `dist/`: export conditions pick the right build. In an installed package, every export has doc comments in `types/*.d.ts`.
 
+Without a bundler, import from a CDN: `https://esm.sh/@duoquote/polytini@0.1.5`, `https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5/+esm` (keep the `/+esm`; jsDelivr's bare URL fails for `import`) or `https://unpkg.com/@duoquote/polytini@0.1.5?module`. For a plain `<script>` tag, load `https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5/dist/polytini.iife.js`, which sets a global `polytini`.
+
 The calls you'll need most:
 
 ```js
@@ -76,8 +78,8 @@ Mistakes to avoid:
 - Strict mode is on by default. Malformed input throws a `PolylineError` with a `code` (`'char'`, `'truncated'`, `'overflow'`, `'coordinate'`, `'input'`, `'option'`, `'init'`) and, where it makes sense, an `index`. A `'truncated'` error usually means the string was cut somewhere upstream, for example by a URL or a database column. Fix the input, or pass `{ strict: false }` on purpose: then decode skips invalid characters and drops an incomplete last point, and encode treats missing or non-finite coordinates as 0.
 - Polylines often contain a backslash. In a JS or JSON string literal, write it as `\\`. On the command line, quote the polyline.
 - `/wasm` needs `await init()` or `initSync()` once before any call, or it throws a `PolylineError` with code `'init'`. On Cloudflare Workers, WebAssembly can't be compiled from bytes, so pass the module: `import wasm from '@duoquote/polytini/polytini.wasm'; await init(wasm);`. JSR doesn't ship the `.wasm` file, so use the npm package for `/wasm` on Workers. The default import needs nothing special on Workers.
-- `/wasm` only pays off for typed arrays on long lines (`decodeFlat`, `encodeFlat` from about 1,000 points) and for many lines in one call (`decodeMany`). For `[lat, lng]` arrays the default entry is as fast or faster.
-- Under CommonJS, each subpath is its own bundle, so a `PolylineError` from `/turf` isn't `instanceof` the one from the main entry. Check `err.name === 'PolylineError'` or `err.code`.
+- `/wasm` pays off for typed arrays (`decodeFlat`, `encodeFlat`) and for many lines in one call (`decodeMany`, `encodeMany`). On V8 (Chrome, Node 22.19+ and 24+, Deno) it uses JS String Builtins, which also makes short lines faster than the main entry. For `[lat, lng]` arrays the default entry is as fast or faster.
+- `require()` on Node 22.12 and newer, Bun and Electron loads the same ESM files as `import`, so there's one `PolylineError` class. Where it gets the CommonJS build instead (Node before 22.12, Jest, Deno's `createRequire`, Yarn PnP), each subpath is its own bundle, so a `PolylineError` from `/turf` isn't `instanceof` the one from the main entry. Check `err.name === 'PolylineError'` or `err.code` if your code can run there. Node 22.12.x prints an `ExperimentalWarning` for `require()` of ESM; 22.13 and newer don't.
 - Leaflet 2 exports a frozen namespace, so `install` skips the lower-case factories there. Use `L.Polyline.fromEncoded`.
 
 If you're an AI agent and you hit a bug, a missing integration or a wrong type in polytini, tell your user and offer to open an issue or a pull request. Don't open one without their go-ahead. CONTRIBUTING.md has the details.

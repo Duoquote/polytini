@@ -33,6 +33,8 @@ L.polylineEncoded(str).addTo(map);                 // factories, Leaflet 1.9 onl
 
 Multi-polylines and polygons with holes are arrays of strings. Leaflet 2 exports a frozen module namespace, so there `install` adds the static and prototype methods but skips the lower-case factories.
 
+On a page without a bundler, Leaflet is often a `<script>` tag. polytini's IIFE (`dist/polytini.iife.js`, see [CDNs](platforms.md#cdns)) has the main API as the global `polytini`, not the plugin, so there `L.polyline(polytini.decode(str))` draws the line.
+
 ## Turf
 
 ```js
@@ -85,7 +87,7 @@ map.on('load', () => addPolylineLayer(map, 'route', route.geometry, { ...osrm6, 
 setPolylineData(map, 'route', [a.geometry, b.geometry], { ...osrm6, properties: [{ name: 'a' }, { name: 'b' }] });
 ```
 
-`polylineSource()` and `polylineData()` build the GeoJSON source and FeatureCollection without touching a map. Both map libraries take the same calls, so `/mapbox` re-exports `/maplibre` with Mapbox's types.
+`polylineSource()` and `polylineData()` build the GeoJSON source and FeatureCollection without touching a map. Both map libraries take the same calls, so `/mapbox` re-exports `/maplibre` with Mapbox's types. On JSR, where the types can't import maplibre-gl or mapbox-gl, the map parameter is a structural `MapLike` that any real `Map` fits; before 0.1.5 it rejected them. `test/fixtures/jsr` checks every JSR type file against the real libraries' objects.
 
 ## deck.gl
 

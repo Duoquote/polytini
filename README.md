@@ -44,6 +44,8 @@ npm i @duoquote/polytini
 
 ESM and CommonJS, with TypeScript types. Node 22 or newer, Bun, Deno, browsers and Cloudflare Workers.
 
+Without a bundler, import `https://esm.sh/@duoquote/polytini` (on jsDelivr, add `/+esm`), or load `dist/polytini.iife.js` with a `<script>` tag for a global `polytini`. URLs: [docs/platforms.md](docs/platforms.md#cdns).
+
 ## Usage
 
 ```js
@@ -125,8 +127,8 @@ None of them import their map library; you pass it in or use what they return. E
 
 - The precision isn't stored in the string. A `polyline6` string decoded at 5 gives coordinates ten times too big, with no error.
 - Strict mode throws on invalid characters, cut-off strings and NaN coordinates. Pass `strict: false` to never throw.
-- `/wasm` only pays off for typed arrays on long lines and for many lines in one call (`decodeMany`). For `[lat, lng]` arrays the default entry is as fast or faster. Numbers: [docs/platforms.md](docs/platforms.md#wasm).
-- Each runtime gets its own entry through package.json conditions (`node`, `bun`, `deno`, `workerd`, `browser`). Why each one exists: [docs/platforms.md](docs/platforms.md).
+- `/wasm` pays off for typed arrays (`decodeFlat`, `encodeFlat`) and for many lines in one call (`decodeMany`). On V8 (Chrome, Node, Deno) it also uses JS String Builtins, which made short lines 10 to 65% faster. For `[lat, lng]` arrays the default entry is as fast or faster. Numbers: [docs/platforms.md](docs/platforms.md#wasm).
+- Each runtime gets its own entry through package.json conditions (`node`, `bun`, `deno`, `workerd`, `browser`, `react-native`). Why each one exists, and what Jest, webpack, Vite, Parcel, Metro and TypeScript pick: [docs/platforms.md](docs/platforms.md).
 
 ## Cloudflare Workers
 
