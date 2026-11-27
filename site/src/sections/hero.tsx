@@ -16,16 +16,16 @@ export const LINKS = [
 export function Hero() {
   const isDark = useDark()
   return (
-    <section aria-labelledby="hero-title" className="mx-auto max-w-6xl px-4 pt-10 pb-12 sm:px-6 sm:pt-16 sm:pb-16">
-      <div className="grid items-center gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
-        <div className="flex min-w-0 flex-col gap-5">
+    <section aria-labelledby="hero-title" className="mx-auto max-w-[96rem] px-4 pt-6 pb-8 sm:px-6 sm:pt-8 sm:pb-10">
+      <div className="grid items-center gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+        <div className="flex min-w-0 flex-col gap-4">
           <div className="flex items-center gap-4">
             <img
               src={isDark ? dark : light}
               alt="polytini logo: a small bird sitting on a line"
               width={96}
               height={96}
-              className="size-20 sm:size-24"
+              className="size-16 sm:size-20"
               fetchPriority="high"
             />
             {/* text-4xl and text-5xl come with a line height of 1 or close to

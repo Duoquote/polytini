@@ -28,10 +28,13 @@
       "@duoquote/polytini/presets": ["../types/presets.d.ts"],
       "@duoquote/polytini/flexible": ["../types/flexible.d.ts"],
       "@duoquote/polytini/wasm": ["../types/wasm.d.ts"],
+      "@duoquote/polytini/stream": ["../types/stream.d.ts"],
       "@duoquote/polytini/maplibre": ["../types/maplibre.d.ts"],
       "maplibre-gl": ["./node_modules/maplibre-gl/dist/maplibre-gl.d.ts"],
       "geojson": ["./node_modules/@types/geojson/index.d.ts"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Tests run in Node under vitest, which doesn't typecheck; they use Node types.
+  "exclude": ["src/**/*.test.ts", "src/playground/test", "src/playground/formats/testkit.ts"]
 }

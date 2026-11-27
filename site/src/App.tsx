@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react"
 import { MoonIcon, SunIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
@@ -5,12 +6,15 @@ import { useDark } from "@/lib/use-dark"
 import light from "@/assets/logo/light.webp"
 import darkLogo from "@/assets/logo/dark.webp"
 import { Hero, LINKS } from "@/sections/hero"
-import { Playground } from "@/sections/playground"
 import { Strict } from "@/sections/strict"
 import { Formats } from "@/sections/formats"
 import { Integrations } from "@/sections/integrations"
 import { Benchmark } from "@/sections/benchmark"
 import { Results } from "@/sections/results"
+
+// The playground is its own chunk, fetched next to the main one, so its
+// first render doesn't add to the page's first long task.
+const Playground = lazy(() => import("@/playground/Playground").then((m) => ({ default: m.Playground })))
 
 const NAV = [
   ["playground", "Playground"],
@@ -74,7 +78,9 @@ export function App() {
       </header>
       <main>
         <Hero />
-        <Playground />
+        <Suspense fallback={<section id="playground" aria-label="Playground, loading" className="min-h-[56rem] border-t" />}>
+          <Playground />
+        </Suspense>
         <Strict />
         <Formats />
         <Integrations />
