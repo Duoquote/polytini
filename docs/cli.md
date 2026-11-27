@@ -13,12 +13,18 @@ deno run -R jsr:@duoquote/polytini/cli decode -p 6 -f geojson --file route.txt
 ```
 
 ```sh
+yarn dlx @duoquote/polytini decode "kviyHviWkCbkBsg@guA"
+```
+
+```sh
 npx @duoquote/polytini decode --lines --file routes.txt
 ```
 
 The first two use the same three points in London, Westminster, Buckingham Palace and Trafalgar Square, one in each direction: `decode` prints `[[51.5007,-0.1246],[51.5014,-0.1419],[51.5079,-0.1281]]` and `encode` prints `kviyHviWkCbkBsg@guA`. Deno needs `-R` (`--allow-read`) only for `--file`.
 
-I ran every command on this page in cmd, PowerShell 5.1 and Git Bash, with each of the four launchers.
+`yarn dlx` needs Yarn 2 or newer; on Yarn 1, use `npx`. It prints Yarn's install log to stdout before the output, so add `-q` when you pipe it: `yarn dlx -q @duoquote/polytini decode ...`.
+
+I ran every command on this page in cmd, PowerShell 5.1 and Git Bash, with each of the five launchers (Yarn 4.19 for `yarn dlx`).
 
 ## Quoting
 

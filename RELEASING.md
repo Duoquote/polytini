@@ -60,6 +60,7 @@ DENO_NO_PACKAGE_JSON=1 deno doc --lint $(node -p 'Object.values(require("./jsr.j
 DENO_NO_PACKAGE_JSON=1 node scripts/check-jsr-docs.js
 npm run test:workers
 node test/smoke.js
+node test/yarn-dlx.js
 ```
 
 Nothing in this list publishes anything.

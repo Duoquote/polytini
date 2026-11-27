@@ -161,10 +161,14 @@ deno run -R jsr:@duoquote/polytini/cli decode --lines --file routes.txt
 ```
 
 ```sh
+yarn dlx @duoquote/polytini decode "kviyHviWkCbkBsg@guA"
+```
+
+```sh
 npx @duoquote/polytini decode -p 6 -f geojson --file route.txt
 ```
 
-These work as written in bash, PowerShell and cmd. For your own polylines, use single quotes in bash, zsh and PowerShell and double quotes in cmd: a polyline can contain `` ` ``, `\`, `|` and `^`. It reads `--file`, stdin or `-`, streams big inputs, and `--lines` gives one result per line. JSON, GeoJSON, CSV and NDJSON. All options: [docs/cli.md](docs/cli.md).
+These work as written in bash, PowerShell and cmd. `yarn dlx` needs Yarn 2 or newer; on Yarn 1, use `npx`. For your own polylines, use single quotes in bash, zsh and PowerShell and double quotes in cmd: a polyline can contain `` ` ``, `\`, `|` and `^`. It reads `--file`, stdin or `-`, streams big inputs, and `--lines` gives one result per line. JSON, GeoJSON, CSV and NDJSON. All options: [docs/cli.md](docs/cli.md).
 
 ## Streaming
 

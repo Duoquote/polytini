@@ -66,7 +66,7 @@ Import paths:
 | `@duoquote/polytini/deckgl` | `binaryPaths` and `binaryPolygons`, deck.gl binary data for `PathLayer`, `TripsLayer` and `SolidPolygonLayer`. |
 | `@duoquote/polytini/flexible` | HERE Flexible Polyline: `encode`, `decode`, `header` and the third-dimension constants. Same shapes as `@here/flexpolyline`. |
 | `@duoquote/polytini/stream` | Streaming, with the same results and errors as `decode` and `encode`: `DecodeStream` and `EncodeStream` (TransformStreams), `PolylineDecoder` and `PolylineEncoder` (`write`, `end`), `DecodeLinesStream` and `EncodeLinesStream` (one polyline per line, NDJSON with `field`), `decodeIterable`, `encodeIterable`, `decodeLines`, `encodeLines`. |
-| CLI | `pnpm dlx @duoquote/polytini decode "kviyHviWkCbkBsg@guA"`, `bunx @duoquote/polytini encode 51.5007,-0.1246 51.5014,-0.1419`, `npx @duoquote/polytini decode --lines --file routes.txt`, or from JSR `deno run -R jsr:@duoquote/polytini/cli` (`-R` for `--file`). |
+| CLI | `pnpm dlx @duoquote/polytini decode "kviyHviWkCbkBsg@guA"`, `bunx @duoquote/polytini encode 51.5007,-0.1246 51.5014,-0.1419`, from JSR `deno run -R jsr:@duoquote/polytini/cli` (`-R` for `--file`), `yarn dlx @duoquote/polytini` (Yarn 2 and newer; `-q` hides its install log), or `npx @duoquote/polytini decode --lines --file routes.txt`, which also works for Yarn 1 users. |
 
 The integrations don't import their map library. You pass it in (`install(L)`, `createPolylineFormat({ Polyline, LineString })`) or hand their return value to it.
 

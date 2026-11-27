@@ -26,8 +26,13 @@ CLI:
 
 Docs:
 
-- The CLI examples in the README, docs/cli.md and llms.txt use polylines without `` ` ``, `\`, `|` or `^`, in double quotes, so they work in every shell as written. The old example, `` '_p~iF~ps|U_ulLnnqC_mqNvxq`@' ``, didn't work in cmd, where single quotes aren't quotes and `|` starts a pipe. I ran every documented command in cmd, PowerShell 5.1 and Git Bash with `pnpm dlx`, `bunx`, `deno run` and `npx`. docs/cli.md says how to quote your own polylines in each shell.
+- The CLI examples in the README, docs/cli.md and llms.txt use polylines without `` ` ``, `\`, `|` or `^`, in double quotes, so they work in every shell as written. The old example, `` '_p~iF~ps|U_ulLnnqC_mqNvxq`@' ``, didn't work in cmd, where single quotes aren't quotes and `|` starts a pipe. I ran every documented command in cmd, PowerShell 5.1 and Git Bash with `pnpm dlx`, `bunx`, `deno run`, `yarn dlx` (Yarn 4.19) and `npx`. `yarn dlx` needs Yarn 2 or newer, so the docs point Yarn 1 users to `npx`. docs/cli.md says how to quote your own polylines in each shell.
 - `deno run` needs `-R` for `--file`, and the docs say so.
+
+Tests:
+
+- `test/smoke.js` installs the tarball with Yarn 4 using the node-modules linker as well as Plug'n'Play, and with Yarn 1, both through Corepack when it's there, and runs the bin through `yarn polytini`, `yarn exec`, `yarn run` and `yarn dlx`. Every package manager's consumers import `/stream` too.
+- `test/yarn-dlx.js` runs the CLI through `yarn dlx` from the packed tarball in every shell the machine has. CI runs it with Yarn 4 from Corepack on Linux (bash) and Windows (cmd, PowerShell and Git Bash).
 
 ## 0.1.6
 

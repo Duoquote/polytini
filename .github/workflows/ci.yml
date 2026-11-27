@@ -142,7 +142,33 @@ jobs:
         with:
           deno-version: v2.x
       - run: npm ci
+      # Yarn 4 and Yarn 1 come from Corepack (bundled with Node 24) inside the script.
       - run: node test/smoke.js
+
+  # The CLI through `yarn dlx` from the packed tarball, as docs/cli.md shows
+  # it, with Yarn 4 from Corepack: bash on Linux; cmd, Windows PowerShell and
+  # Git Bash on Windows.
+  yarn-dlx:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Yarn 4 through Corepack
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+        run: |
+          corepack enable yarn
+          corepack install -g yarn@4.19.0
+          yarn --version
+      - run: node test/yarn-dlx.js
 
   # The packed package in the tools that pick an entry their own way: Jest
   # (node and jsdom), Parcel's defaults, Metro's resolver, TypeScript node10,

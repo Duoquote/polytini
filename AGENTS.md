@@ -20,7 +20,8 @@ node test/run.js leaflet      # only files whose name contains "leaflet"
 |---|---|
 | `npm test`, `npm run test:bun`, `npm run test:deno` | The whole suite on each runtime. Every codec test runs against every entry: web, browser, node, bun, deno and wasm. |
 | `npm run test:workers` | The packed package in workerd through wrangler, locally. No Cloudflare account. |
-| `node test/smoke.js` | Packs the tarball and installs it with npm, pnpm, Yarn 4 PnP, Yarn 1, Bun and Deno. Slow; needs those tools. |
+| `node test/smoke.js` | Packs the tarball and installs it with npm, pnpm, Yarn 4 (PnP and node-modules), Yarn 1, Bun and Deno. Yarn comes from Corepack when it's installed. Slow; needs those tools. |
+| `node test/yarn-dlx.js` | The CLI through `yarn dlx` from the packed tarball in every shell the machine has (bash; cmd, PowerShell and Git Bash on Windows). Needs Yarn 2 or newer as `yarn`. |
 | `node test/tools/matrix.mjs` | Packs the tarball and checks which file Jest, Vitest, webpack, Rollup, esbuild, Vite, Parcel, Metro, TypeScript and Electron pick, and that it runs. Needs `npm install --prefix test/tools`. CI runs `--quick`. See docs/platforms.md. |
 | `node scripts/size.js` | Minified and gzipped size of every entry against its budget. Also rewrites `assets/badges/size.svg`. |
 | `node scripts/check-deps.js` | No runtime dependencies in package.json or in `src/` imports. |
