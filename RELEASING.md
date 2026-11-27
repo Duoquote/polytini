@@ -52,6 +52,7 @@ The workflow still uses an `NPM_TOKEN` repository secret if one exists, for the 
 ```sh
 npm test
 node scripts/size.js
+node scripts/llms.js --check
 npm publish --dry-run
 node scripts/check-jsr-types.js
 DENO_NO_PACKAGE_JSON=1 deno publish --dry-run --allow-dirty

@@ -1,16 +1,44 @@
 {
   "name": "@duoquote/polytini",
   "version": "0.1.2",
-  "description": "Encode and decode Google encoded polylines. Small, strict by default, with fast paths for Node, Bun and Deno.",
+  "description": "Encode and decode Google encoded polylines, polyline6 included. Strict by default, no dependencies, with builds for Node, Bun, Deno, browsers and Cloudflare Workers, and adapters for Leaflet, MapLibre, Mapbox GL, OpenLayers, deck.gl, Turf and Google Maps.",
   "keywords": [
     "polyline",
     "encoded polyline",
+    "google polyline",
+    "polyline encoding",
+    "polyline decoding",
+    "encode polyline",
+    "decode polyline",
+    "polyline6",
     "google maps",
+    "gis",
     "geojson",
+    "geospatial",
+    "maps",
+    "routing",
+    "leaflet",
+    "maplibre",
+    "maplibre-gl",
+    "mapbox",
+    "mapbox-gl",
+    "openlayers",
+    "deck.gl",
+    "turf",
     "osrm",
     "valhalla",
-    "leaflet",
-    "turf"
+    "graphhopper",
+    "openrouteservice",
+    "strava",
+    "here flexible polyline",
+    "flexpolyline",
+    "wasm",
+    "webassembly",
+    "bun",
+    "deno",
+    "cloudflare workers",
+    "typescript",
+    "zero dependencies"
   ],
   "license": "MIT",
   "author": "Güven Değirmenci",
@@ -157,7 +185,8 @@
     "src",
     "types",
     "dist",
-    "wasm/polytini.wasm"
+    "wasm/polytini.wasm",
+    "llms.txt"
   ],
   "engines": {
     "node": ">=22"
@@ -176,7 +205,8 @@
     "test:browser": "node test/browser.js",
     "size": "node scripts/size.js",
     "smoke": "node test/smoke.js",
-    "check:deps": "node scripts/check-deps.js"
+    "check:deps": "node scripts/check-deps.js",
+    "llms": "node scripts/llms.js"
   },
   "devDependencies": {
     "@deck.gl/core": "^9.4.2",

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Usage docs
+    url: https://github.com/Duoquote/polytini/blob/main/docs/api.md
+    about: Options, strict mode, error codes and the entry points.
