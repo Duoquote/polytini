@@ -7,9 +7,7 @@
 //   const [simplified] = fromGeoJSON(turf.simplify(toFeature(str), { tolerance: 0.001 }));
 /* @ts-self-types="../types/turf.jsr.d.ts" */
 import { decode, encode } from './web.js';
-import { fail } from './error.js';
-
-const lngLat = (o) => ({ ...(typeof o == 'number' ? { precision: o } : o), order: 'lnglat' });
+import { fail, withOrder as lngLat } from './core.js';
 
 // [west, south, east, north] over every position of nested arrays.
 function bbox(c) {
