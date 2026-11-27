@@ -72,11 +72,10 @@ export async function entries() {
   if (bundled()) return (cached = bundled().entries);
   const list = [];
   for (const name of ['web', 'browser', 'node', 'bun', 'deno']) list.push({ name, api: await import(here(`../src/${name}.js`)) });
-  // The node entry's appending decode, which only V8 12 uses on its own: a
-  // second copy of fast.js, so the node entry above keeps its own setting.
-  const { appendFrom, ...fast } = await fresh('fast.js');
-  appendFrom(0);
-  list.push({ name: 'node (appending)', api: { ...list.find((e) => e.name == 'node').api, ...fast } });
+  // The node entry's appending decode, which only V8 12 uses on its own.
+  const { Buffer } = await import('node:buffer');
+  const { fast } = await import(here('../src/fast.js'));
+  list.push({ name: 'node (appending)', api: { ...list.find((e) => e.name == 'node').api, ...fast(Buffer, 0) } });
   const wasm = await import(here('../src/wasm.js'));
   wasmBuiltins.on = await watch(() => wasm.init());
   list.push({ name: 'wasm', api: wasm });
@@ -129,28 +128,23 @@ async function watch(fn) {
 }
 
 /**
- * A fresh copy of a module in src/, with its own module state (the wasm
- * instance, fast.js's settings). What it imports stays shared with the other
- * entries, so they all throw the same PolylineError class.
+ * A fresh copy of src/wasm.js, with its own instance: the instance is module
+ * state, and Bun returns the same module for ?query imports.
  */
 let copies = 0;
-export const freshWasm = () => fresh('wasm.js');
-export async function fresh(file) {
+export async function freshWasm() {
   // A query gives a new module on Node and Deno, and keeps the file's path,
-  // so coverage counts it as the file in src/.
-  if (!globalThis.Bun) return import(here(`../src/${file}?copy=${++copies}`));
-  // Bun returns the same module for ?query imports, so there it's a copy of
-  // the file in a temporary folder, importing the real src/ files.
-  const { readFileSync, mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  // so coverage counts it as src/wasm.js.
+  if (!globalThis.Bun) return import(here(`../src/wasm.js?copy=${++copies}`));
+  const { cpSync, mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const { pathToFileURL } = await import('node:url');
-  const dir = mkdtempSync(join(tmpdir(), 'polytini-copy-'));
-  const src = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8').replace(/from '\.\/([\w-]+\.js)'/g, (_, f) => `from '${here(`../src/${f}`)}'`);
-  writeFileSync(join(dir, file), src);
+  const dir = mkdtempSync(join(tmpdir(), 'polytini-wasm-'));
+  cpSync(new URL('../src/', import.meta.url), dir, { recursive: true });
   writeFileSync(join(dir, 'package.json'), '{"type":"module"}');
   try {
-    return await import(pathToFileURL(join(dir, file)).href);
+    return await import(pathToFileURL(join(dir, 'wasm.js')).href);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
