@@ -74,8 +74,17 @@ jobs:
         run: npx c8 --reporter=text-summary --include='src/**' node test/run.js
       - name: Integration types against the real libraries
         run: for c in test/fixtures/*/tsconfig.json; do echo "$c"; npx tsc -p "$c" || exit 1; done
+      # npm refuses even a dry run once the version is on the registry, so
+      # after a release (until the next version bump) check the pack instead.
       - name: npm publish dry run
-        run: npm publish --dry-run
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if npm view "@duoquote/polytini@$v" version 2>/dev/null | grep -q .; then
+            echo "$v is already on npm, checking the pack instead"
+            npm pack --dry-run
+          else
+            npm publish --dry-run
+          fi
 
   smoke:
     runs-on: ubuntu-latest
