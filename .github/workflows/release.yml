@@ -58,6 +58,13 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      # The integration types import types from @turf/helpers, @types/geojson
+      # and others, and deno publish reads them from node_modules.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
       # A published release also pushes its tag, so this can run twice.
       - name: Skip if JSR already has this version
         id: jsr
