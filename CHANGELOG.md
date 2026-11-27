@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.9
 
-Two additions: `@duoquote/polytini/detect`, which works out how a string was encoded, and `onIssue`, which says what lenient decoding skipped. Strict output, strict errors and lenient output are the same as in 0.1.7.
+Two additions: `@duoquote/polytini/detect`, which works out how a string was encoded, and `onIssue`, which says what lenient decoding skipped. Strict output, strict errors and lenient output are the same as in 0.1.8, whose codec is 0.1.7's.
 
 `@duoquote/polytini/detect`, a new entry. Docs: [docs/api.md](docs/api.md#detecting-the-encoding).
 
