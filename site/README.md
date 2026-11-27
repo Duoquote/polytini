@@ -1,21 +1,18 @@
-# React + TypeScript + Vite + shadcn/ui
+# polytini demo site
 
-This is a template for a new Vite project with React, TypeScript, and shadcn/ui.
+The page at https://duoquote.github.io/polytini/. It runs polytini in the browser: a playground with a map, the strict mode and precision examples, the formats, the integrations and a small benchmark.
 
-## Adding components
+It's Vite, React and shadcn/ui (Radix), set up with `bunx --bun shadcn@latest init --preset biyODCyK9 --base radix --template vite --pointer`. It has its own `package.json` and `bun.lock`, and none of it ships in the npm or JSR package.
 
-To add components to your app, run the following command:
-
-```bash
-npx shadcn@latest add button
+```sh
+cd site
+bun install
+bun run dev      # http://localhost:5173/polytini/
+bun run build    # site/dist
 ```
 
-This will place the ui components in the `src/components` directory.
+polytini itself comes from the repo's `src/`, not from npm (see the aliases in `vite.config.ts`), so the page always runs the current code. The types come from `../types`. The comparison libraries in the benchmark (`@mapbox/polyline`, `@googlemaps/polyline-codec`, `google-polyline`) and MapLibre are dependencies of the site only.
 
-## Using components
+Maps use [OpenFreeMap](https://openfreemap.org): no API key, no limit on views, attribution required, which MapLibre shows from the style. MapLibre and the benchmark libraries load only when they're needed.
 
-To use the components in your app, import them as follows:
-
-```tsx
-import { Button } from "@/components/ui/button"
-```
+`.github/workflows/pages.yml` builds and deploys it on pushes to `main` that touch `site/`, `src/` or `types/`.

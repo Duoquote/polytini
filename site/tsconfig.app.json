@@ -2,7 +2,7 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "es2023",
-    "lib": ["ES2023", "DOM"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "esnext",
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
@@ -23,7 +23,14 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@duoquote/polytini": ["../types/index.d.ts"],
+      "@duoquote/polytini/presets": ["../types/presets.d.ts"],
+      "@duoquote/polytini/flexible": ["../types/flexible.d.ts"],
+      "@duoquote/polytini/wasm": ["../types/wasm.d.ts"],
+      "@duoquote/polytini/maplibre": ["../types/maplibre.d.ts"],
+      "maplibre-gl": ["./node_modules/maplibre-gl/dist/maplibre-gl.d.ts"],
+      "geojson": ["./node_modules/@types/geojson/index.d.ts"]
     }
   },
   "include": ["src"]

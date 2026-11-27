@@ -14,10 +14,14 @@
   "dependencies": {
     "@fontsource-variable/noto-sans": "^5.3.0",
     "@fontsource-variable/public-sans": "^5.3.0",
+    "@googlemaps/polyline-codec": "^1.0.28",
+    "@mapbox/polyline": "^1.2.1",
     "@tailwindcss/vite": "^4",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.2",
+    "google-polyline": "^2.0.0",
     "lucide-react": "^1.82.0",
+    "maplibre-gl": "^6.19.0",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
@@ -27,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10",
+    "@types/mapbox__polyline": "^1.0.5",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
