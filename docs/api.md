@@ -70,3 +70,7 @@ The package picks an entry point by export condition, so you don't import these 
 | `default` | `src/web.js` | the portable core and nothing else |
 
 `@duoquote/polytini/web`, `/browser` and `/node` pick one explicitly. All of them have the same API and give the same output; the test suite runs every check against each of them. `require()` gets the same files on Node 22.12 and newer and on Bun, and the CommonJS build in `dist/` elsewhere; [docs/platforms.md](platforms.md#module-formats-and-tools) has the whole order, the fields for tools that ignore `exports`, and the CDN and `<script>` URLs.
+
+## Streaming
+
+`@duoquote/polytini/stream` decodes a polyline that arrives in chunks and encodes points as they come, with the same results and errors as `decode` and `encode` on the whole input, and reads one polyline per line (NDJSON included). It has TransformStreams, a `PolylineDecoder` and `PolylineEncoder` with `write` and `end`, and async iterables: [streaming.md](streaming.md).

@@ -251,12 +251,14 @@ Whole entries, every export:
 | turf | 4646 B | 2158 B |
 | presets | 818 B | 284 B |
 | flexible | 4175 B | 2036 B |
+| stream | 8212 B | 3628 B |
+| stream, PolylineDecoder only | 3344 B | 1722 B |
 | google | 3858 B | 1913 B |
 | openlayers | 1998 B | 1068 B |
 | maplibre | 2970 B | 1537 B |
 | mapbox | 2970 B | 1537 B |
 | deckgl | 3953 B | 1913 B |
-| cli | 7915 B | 3755 B |
+| cli | 16015 B | 6921 B |
 
 The same imports with Rollup (node-resolve, commonjs, terser) and webpack 5 in production mode, gzipped, `import * as m` for every export (which also keeps the namespace object):
 

@@ -120,6 +120,7 @@ Options are a precision number or `{ precision, factor, order, strict, dimension
 | `@duoquote/polytini/maplibre`, `/mapbox` | GeoJSON sources, add a line layer, update it |
 | `@duoquote/polytini/deckgl` | deck.gl binary paths and polygons, no array per point |
 | `@duoquote/polytini/flexible` | HERE's Flexible Polyline, a drop-in for `@here/flexpolyline` |
+| `@duoquote/polytini/stream` | Decode a polyline as it downloads, encode points as they come, one polyline per line (NDJSON) |
 | `@duoquote/polytini/wasm` | Opt-in WebAssembly build, with batch calls |
 
 None of them import their map library; you pass it in or use what they return. Examples for each: [docs/integrations.md](docs/integrations.md).
@@ -148,22 +149,33 @@ await init(wasm);
 ## CLI
 
 ```sh
-pnpm dlx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
+pnpm dlx @duoquote/polytini decode "kviyHviWkCbkBsg@guA"
 ```
 
 ```sh
-bunx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
+bunx @duoquote/polytini encode 51.5007,-0.1246 51.5014,-0.1419 51.5079,-0.1281
 ```
 
 ```sh
-deno run jsr:@duoquote/polytini/cli decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
+deno run -R jsr:@duoquote/polytini/cli decode --lines --file routes.txt
 ```
 
 ```sh
-npx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
+npx @duoquote/polytini decode -p 6 -f geojson --file route.txt
 ```
 
-It reads stdin too: `echo '[[38.5,-120.2],[40.7,-120.95]]' | bunx @duoquote/polytini encode`. JSON, GeoJSON, CSV and plain lines. All options: [docs/cli.md](docs/cli.md).
+These work as written in bash, PowerShell and cmd. For your own polylines, use single quotes in bash, zsh and PowerShell and double quotes in cmd: a polyline can contain `` ` ``, `\`, `|` and `^`. It reads `--file`, stdin or `-`, streams big inputs, and `--lines` gives one result per line. JSON, GeoJSON, CSV and NDJSON. All options: [docs/cli.md](docs/cli.md).
+
+## Streaming
+
+```js
+import { DecodeStream } from '@duoquote/polytini/stream';
+
+const res = await fetch(url);
+for await (const points of res.body.pipeThrough(new DecodeStream())) draw(points);
+```
+
+Points come out as each chunk completes them, and they're exactly what `decode` gives on the whole string, errors included. There's also `PolylineDecoder` with `write` and `end` for code without streams, encoders, NDJSON lines and async iterables: [docs/streaming.md](docs/streaming.md).
 
 ## More
 
