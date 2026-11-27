@@ -63,7 +63,7 @@ Decoding goes on after `onIssue` returns, and the output is the same as `strict:
 
 Every decoder that takes `strict` takes it: `decode`, `decodeFlat`, `decodeLatLng`, `toGeoJSON` and the presets on every entry, `/wasm` (`decodeMany` reports each line's issues with the index in that line), the integrations that decode, `/stream` (the index is in the whole input, wherever the chunks were cut, and the line decoders add the 1-based `line`) and `/flexible`, which now takes `{ strict: false, onIssue }` too. Its header is always strict, because nothing after it can be read without it.
 
-It costs nothing when you don't use it: only the slow decoder that already handles bad input reads it, so decoding valid input runs the same code as before. In paired runs against 0.1.7 the difference stayed inside the noise ([CHANGELOG.md](../CHANGELOG.md) has the numbers). `import { decode }` grew by 50 bytes gzipped.
+It costs nothing when you don't use it: only the slow decoder that already handles bad input reads it, so decoding valid input runs the same code as before. In paired runs against 0.1.7 on Node 24, Bun, Deno and Chrome the difference stayed inside the noise of 0.1.7 against itself ([CHANGELOG.md](../CHANGELOG.md)). `import { decode }` grew by 50 bytes gzipped.
 
 I made strict the default because it's cheap: on 10-point lines the checks measured 0 to 4%, and nothing I could separate from the noise on longer ones. The decoder ORs every character code into one integer and checks it once at the end, and the encoder's range check also catches NaN. Most other libraries silently return a wrong last point for a truncated string; see `npm run behavior` in the benchmark repo.
 
@@ -251,7 +251,7 @@ Each reading gets a score for how much its points look like real geometry, and t
 - A prior: precision 5 is the most common, then 6, then 7, and latitude first is the format's own order.
 - With `isLand`, points at sea.
 
-The string is decoded once, with the core's `decodeFlat` at factor 1. That gives the integers every Google reading shares: a precision only divides them, an order swaps two, and three values per point regroups them. Scoring then looks at up to `sample` points (default 256) spread over the line, so a long line costs one fast decode and a fixed amount of work. On the 10,000-point benchmark track `detect` took about 1.2 ms on Node 25, where `decode` took 0.15 ms. At 10 points it took 0.07 ms. `decodeAuto` adds one `decode`.
+The string is decoded once, with the core's `decodeFlat` at factor 1. That gives the integers every Google reading shares: a precision only divides them, an order swaps two, and three values per point regroups them. Scoring then looks at up to `sample` points (default 256) spread over the line, so a long line costs one fast decode and a fixed amount of work. On the 10,000-point benchmark track `detect` took 1.1 ms on Node 25 (where `decode` took 0.12 ms), 1.4 ms on Node 24, 0.65 ms on Bun and 1.0 ms on Deno. On the real-world lines it was about 0.3 ms per line, and at 10 points 0.02 to 0.08 ms. `decodeAuto` adds one `decode`.
 
 ### Accuracy
 
