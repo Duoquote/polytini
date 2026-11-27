@@ -90,7 +90,7 @@ For a plain `<script>` tag, use the IIFE build. It sets a global `polytini` with
 
 ## WASM
 
-There's an opt-in WebAssembly build: a hand-written WAT module that assembles to 912 bytes, and since 0.1.5 a second one of 835 bytes that uses JS String Builtins (below). Both are inlined as base64 so they load the same way in browsers, bundlers, Node, Bun and Deno. Nothing loads them unless you import `/wasm`:
+There's an opt-in WebAssembly build: a hand-written WAT module that assembles to 912 bytes, and since 0.1.5 a second one of 835 bytes that uses JS String Builtins (below). Both are inlined as hex (since 0.1.6; base64 before) so they load the same way in browsers, bundlers, Node, Bun and Deno. Nothing loads them unless you import `/wasm`:
 
 ```js
 import { init, decodeFlat, decodeMany, encodeMany } from '@duoquote/polytini/wasm';
@@ -225,29 +225,81 @@ So gzipped polylines are the smallest of these, smaller even than the binary for
 
 ## Size
 
-Minified and gzipped with esbuild and zlib level 9, from `node scripts/size.js`, which CI also runs with a budget per entry:
+What a bundle gets depends on what it imports, so the first rows are imports. Minified and gzipped with esbuild and zlib level 9, from `node scripts/size.js`, which CI also runs with a budget per row. A browser bundler resolves the bare import to `src/browser.js`; `/web` is the core alone.
+
+| import | minified | gzipped |
+|---|--:|--:|
+| `import { decode }` | 1907 B | 1065 B |
+| `import { encode }` | 3053 B | 1435 B |
+| `import { decode, encode }` | 4222 B | 1898 B |
+| `import { decodeLatLng }` | 2057 B | 1140 B |
+| `import { toGeoJSON }` | 2053 B | 1137 B |
+| `/web`, `import { encode }` | 2205 B | 1223 B |
+| `/web`, `import { decode, encode }` | 3374 B | 1692 B |
+| node entry, `import { decode }` | 2829 B | 1507 B |
+| node entry, `import { encode }` | 2445 B | 1399 B |
+
+Whole entries, every export:
 
 | entry | minified | gzipped |
 |---|--:|--:|
-| default / web (everything) | 4012 B | 1984 B |
-| web, encode + decode only | 3533 B | 1770 B |
-| browser (the "browser" condition) | 4901 B | 2262 B |
-| node | 5378 B | 2621 B |
-| bun | 5378 B | 2621 B |
-| deno | 5497 B | 2515 B |
-| wasm (JS glue + both inlined modules) | 12676 B | 5879 B |
-| leaflet | 4039 B | 1989 B |
-| turf | 4803 B | 2233 B |
+| default / web | 4369 B | 1992 B |
+| browser (the "browser" condition) | 5243 B | 2205 B |
+| node | 5642 B | 2455 B |
+| bun | 5642 B | 2455 B |
+| deno | 6276 B | 2503 B |
+| wasm (JS glue + both inlined modules) | 14239 B | 5585 B |
+| leaflet | 3880 B | 1910 B |
+| turf | 4646 B | 2158 B |
 | presets | 818 B | 284 B |
 | flexible | 4175 B | 2036 B |
-| google | 4017 B | 1989 B |
-| openlayers | 1994 B | 1064 B |
-| maplibre | 3131 B | 1634 B |
-| mapbox | 3127 B | 1635 B |
-| deckgl | 4129 B | 2039 B |
-| cli | 8074 B | 3839 B |
+| google | 3858 B | 1913 B |
+| openlayers | 1998 B | 1068 B |
+| maplibre | 2970 B | 1537 B |
+| mapbox | 2970 B | 1537 B |
+| deckgl | 3953 B | 1913 B |
+| cli | 7915 B | 3755 B |
 
-polytini is bigger than most polyline libraries, which are about 0.6 KB gzipped. The extra goes into strict-mode errors, the exact slow path for precision 7 and up, objects, dimensions and both orders. The browser entry adds 278 bytes over the minimal web build for its TextDecoder encode; import `@duoquote/polytini/web` if you'd rather have the smaller one. The WASM entry is the biggest because it carries both modules and the JS core it hands `[lat, lng]` decoding and anything unusual to. The string-builtins module added about 1.3 KB gzipped to it in 0.1.5.
+The same imports with Rollup (node-resolve, commonjs, terser) and webpack 5 in production mode, gzipped, `import * as m` for every export (which also keeps the namespace object):
+
+| import | esbuild | Rollup | webpack |
+|---|--:|--:|--:|
+| `import { decode }` | 1063 B | 1021 B | 1056 B |
+| `import { encode }` | 1432 B | 1433 B | 1508 B |
+| `import { decode, encode }` | 1895 B | 1907 B | 1967 B |
+| `import { decodeFlat }` | 1042 B | 973 B | 1037 B |
+| every export | 2278 B | 2287 B | 2419 B |
+| `/web`, `import { decode, encode }` | 1686 B | 1604 B | 1687 B |
+| `/web`, every export | 2061 B | 2006 B | 2137 B |
+
+polytini is still bigger than most polyline libraries. The small ES module ones are 230 to 340 bytes gzipped for decode or encode alone and 420 to 500 for both. The extra goes into strict-mode errors with an index, the exact slow path (precision 7 and up, huge values, `strict: false`, objects, other dimensions), both orders and the options, plus a fast loop next to each slow one. In a decode-only bundle the exact decoder is about 30% of the gzipped bytes and the options about 25%. The browser entry's `encode` adds about 210 bytes over `/web` for its TextDecoder path on long lines; import `@duoquote/polytini/web` if you'd rather have the smaller one. The WASM entry is the biggest because it carries both modules and the JS core it hands `[lat, lng]` decoding and anything unusual to.
+
+### What 0.1.6 changed
+
+Gzipped, esbuild, from `node scripts/size.js` on each version:
+
+| | 0.1.5 | 0.1.6 |
+|---|--:|--:|
+| `import { decode }` | 1164 B | 1065 B |
+| `import { encode }` | 1507 B | 1435 B |
+| `import { decode, encode }` | 2045 B | 1898 B |
+| `import { decodeLatLng }` | 1240 B | 1140 B |
+| `/web`, `import { decode, encode }` | 1770 B | 1692 B |
+| node entry, `import { decode }` | 2572 B | 1507 B |
+| node entry, `import { encode }` | 2572 B | 1399 B |
+| browser, every export | 2262 B | 2205 B |
+| `/web`, every export | 1984 B | 1992 B |
+| wasm, every export | 5879 B | 5585 B |
+
+Rollup and webpack, 0.1.5 to 0.1.6: `decode` 1046 to 1021 and 1134 to 1056, `encode` 1438 to 1433 and 1515 to 1508, both 1897 to 1907 and 2058 to 1967, every export 2297 to 2287 and 2408 to 2419.
+
+- The Node entry couldn't be tree-shaken at all: it built its functions with a factory call and destructured the result. Now `src/fast.js` exports plain functions.
+- `decode` and `decodeFlat` have their own fast loops, so decoding to arrays doesn't bring the Float64Array path. Both loops take the same parameters, declare their variables in the same order and use nothing from outside, so esbuild and terser name them alike and gzip finds the second in the first. A bundle with every export still grows by about 10 to 30 bytes for the second loop; that's the one place 0.1.6 is bigger.
+- The decoders for Node, Bun, Deno and Workers share the core's decode wrappers, which take the fast loop as a parameter. Encoding keeps one wrapper per entry: sharing it made the browser entry's `encodeFlat` 6% slower in Chrome, because the shared call site saw two loops.
+- `src/text.js` creates its `TextEncoder`, `TextDecoder` and scratch buffer with `/* @__PURE__ */`, so a browser `encode` bundle drops the `TextEncoder` it never used. An unused `2 ** 29` is a plain number now, which esbuild can drop.
+- `/wasm` inlines its two modules as hex instead of base64. Two characters per byte keep the same bytes as the same text, so gzip finds what the two modules share: 1,018 against 1,320 bytes gzipped for both.
+
+Tried and dropped: short property names on the shared options object (9 bytes, but it touches every entry), a table of error messages keyed by code (bigger, since each message appears once per bundle), and checking `dimensions` through the precision table (15 bytes, but a BigInt there would throw a TypeError instead of a `PolylineError`).
 
 ## Speed
 

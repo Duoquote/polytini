@@ -11,7 +11,7 @@
   <a href="https://www.npmjs.com/package/@duoquote/polytini"><img alt="npm" src="https://img.shields.io/npm/v/@duoquote/polytini?style=flat"></a>
   <a href="https://jsr.io/@duoquote/polytini"><img alt="JSR" src="https://img.shields.io/jsr/v/@duoquote/polytini?style=flat"></a>
   <a href="https://github.com/Duoquote/polytini/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Duoquote/polytini/ci.yml?branch=main&style=flat&label=CI"></a>
-  <a href="docs/platforms.md#size"><img alt="gzipped size of the default entry" src="https://raw.githubusercontent.com/Duoquote/polytini/main/assets/badges/size.svg"></a>
+  <a href="docs/platforms.md#size"><img alt="gzipped size: decode only, and every export of the browser entry" src="https://raw.githubusercontent.com/Duoquote/polytini/main/assets/badges/size.svg"></a>
   <a href="scripts/check-deps.js"><img alt="dependencies: 0" src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat"></a>
   <a href="LICENSE"><img alt="license: MIT" src="https://img.shields.io/github/license/Duoquote/polytini?style=flat"></a>
 </p>
@@ -128,6 +128,7 @@ None of them import their map library; you pass it in or use what they return. E
 - The precision isn't stored in the string. A `polyline6` string decoded at 5 gives coordinates ten times too big, with no error.
 - Strict mode throws on invalid characters, cut-off strings and NaN coordinates. Pass `strict: false` to never throw.
 - `/wasm` pays off for typed arrays (`decodeFlat`, `encodeFlat`) and for many lines in one call (`decodeMany`). On V8 (Chrome, Node, Deno) it also uses JS String Builtins, which made short lines 10 to 65% faster. For `[lat, lng]` arrays the default entry is as fast or faster. Numbers: [docs/platforms.md](docs/platforms.md#wasm).
+- Size depends on what you import, because bundlers drop what you don't use. In a browser bundle `import { decode }` is 1,065 bytes gzipped, `import { decode, encode }` 1,898, and every export 2,205. The small single-purpose polyline libraries are 230 to 500 bytes; the difference is strict mode, the exact path for precision 7 and up, and the options. Every import and bundler: [docs/platforms.md](docs/platforms.md#size).
 - Each runtime gets its own entry through package.json conditions (`node`, `bun`, `deno`, `workerd`, `browser`, `react-native`). Why each one exists, and what Jest, webpack, Vite, Parcel, Metro and TypeScript pick: [docs/platforms.md](docs/platforms.md).
 
 ## Cloudflare Workers
