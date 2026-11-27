@@ -1,28 +1,26 @@
-// Works out how an encoded string was most likely encoded: Google format at
-// which precision, latitude or longitude first, two or three values per
-// point (GraphHopper puts elevation third), or HERE's Flexible Polyline.
+// Works out how an encoded string was most likely encoded, with polytini's
+// own detector (@duoquote/polytini/detect): Google format at which
+// precision, latitude or longitude first, two or three values per point
+// (GraphHopper puts elevation third), or HERE's Flexible Polyline. This
+// file adds what the playground needs on top: one polyline per line of
+// input, indexes in the whole text, and the decoded lines for the readings
+// it shows.
 //
-// The string itself doesn't say, so every plausible reading is decoded
-// leniently and scored on what real geometry looks like:
+// Each line of input is scored by the library on its own, and a reading's
+// scores are added up over the lines (they're log scores), so every line
+// has to fit the same reading. The land mask is the library's too
+// (@duoquote/polytini/detect/land): a 1 degree grid of Natural Earth land.
 //
-// - every coordinate in range (a precision 6 string read at 5 gives
-//   latitudes ten times too big, usually past 90)
-// - points on land (a string read at one precision too many lands near 0,0,
-//   mostly in the Gulf of Guinea; a swapped order often lands in an ocean)
-// - a typical distance between points of tens to hundreds of meters
-// - no jumps thousands of times longer than the typical step (what a wrong
-//   number of values per point looks like)
-// - elevation in a range people live and drive in, for 3D readings
-// - a prior: precision 5 is the most common, then 6; latitude first is the
-//   format's own order
-//
-// The scores become probabilities with a softmax, and the gap between the
-// best two is the confidence.
+// The lines of a reading come from one lenient decode with onIssue, which
+// also gives the strict error: no second, strict decode.
 import { decode } from "@duoquote/polytini"
 import * as flexible from "@duoquote/polytini/flexible"
+import { detect as detectOne, type Candidate as LibCandidate } from "@duoquote/polytini/detect"
+import { isLand } from "@duoquote/polytini/detect/land"
 import type { Pt } from "./model"
 import { haversine, inRange, median } from "./geo"
-import { isLand } from "./landmask"
+
+export { isLand }
 
 export type Order = "latlng" | "lnglat"
 
@@ -57,12 +55,8 @@ export type Confidence = "high" | "medium" | "low"
 
 export type Detection = { candidates: Candidate[]; confidence: Confidence }
 
-const PRECISION_PRIOR: Record<number, number> = { 5: 0, 6: -0.3, 7: -1.2, 4: -2, 8: -2.5 }
+/** The precisions the playground offers. */
 const PRECISIONS = [5, 6, 7, 4, 8]
-
-/** Google format characters are ? (63) to ~ (126). */
-const GOOGLE_CHAR = /^[?-~]$/
-const FLEX = /^[A-Za-z0-9_-]+$/
 
 /** Splits the input into polylines: one per line, quotes and JSON escaping removed. */
 export function splitInput(text: string): { str: string; offset: number }[] {
@@ -116,7 +110,11 @@ function sampleSteps(lines: Pt[][], max = 3000): { pts: Pt[]; steps: number[] } 
 
 export type Plausibility = { score: number; reasons: string[] }
 
-/** How much a set of lat-first lines looks like real geometry. */
+/**
+ * How much a set of lat-first lines looks like real geometry. For inputs
+ * that aren't polylines (coordinate lists, CSV) and for the fixes; the
+ * polyline readings are scored by the library.
+ */
 export function plausibility(lines: Pt[][], zFactorUsed = false): Plausibility {
   const reasons: string[] = []
   const { pts, steps } = sampleSteps(lines)
@@ -139,9 +137,6 @@ export function plausibility(lines: Pt[][], zFactorUsed = false): Plausibility {
   const moving = steps.filter((d) => d > 0)
   if (moving.length) {
     const med = median(moving)
-    // Broad and capped: sparse lines (Google's own example has 250 km
-    // steps) and 1 Hz walking tracks (about 1 m) are both real, so this only
-    // tips close calls. Range and land decide the rest.
     const decades = Math.log10(med) - 1.8
     score += Math.max(-3, -(decades * decades) / (2 * 1.5 * 1.5))
     if (Math.abs(decades) > 1.5) reasons.push(`typical step ${med < 1 ? med.toFixed(2) + " m" : Math.round(med) + " m"}`)
@@ -163,21 +158,6 @@ export function plausibility(lines: Pt[][], zFactorUsed = false): Plausibility {
   return { score, reasons }
 }
 
-function strictIssues(parts: { str: string; offset: number }[], opts: object): StrictIssue[] {
-  const issues: StrictIssue[] = []
-  parts.forEach((p, part) => {
-    try {
-      decode(p.str, opts)
-    } catch (e) {
-      const err = e as { code?: string; index?: number; message?: string }
-      issues.push({ code: err.code ?? "input", message: err.message ?? String(e), index: p.offset + (err.index ?? 0), part })
-    }
-  })
-  return issues
-}
-
-const swap = (lines: Pt[][]): Pt[][] => lines.map((l) => l.map((p) => [p[1], p[0], ...p.slice(2)]))
-
 export function describe(i: Interp): string {
   if (i.format === "flexible") return "HERE Flexible Polyline"
   const who: Record<number, string> = {
@@ -192,118 +172,84 @@ export function describe(i: Interp): string {
   return s
 }
 
-const softmax = (cs: Candidate[]) => {
-  const max = Math.max(...cs.map((c) => c.score))
-  const exps = cs.map((c) => Math.exp(c.score - max))
-  const sum = exps.reduce((a, b) => a + b, 0)
-  cs.forEach((c, i) => (c.prob = exps[i] / sum))
-}
-
 export const confidenceOf = (cs: Candidate[]): Confidence =>
   !cs.length ? "low" : cs[0].prob >= 0.85 ? "high" : cs[0].prob >= 0.6 ? "medium" : "low"
 
-/** Decodes the input with one explicit reading, for the manual override. */
-export function decodeWith(text: string, interp: Interp): Candidate {
-  const parts = splitInput(text)
-  if (interp.format === "flexible") {
-    const lines = parts.map((p) => {
-      try {
-        return flexible.decode(p.str).polyline as Pt[]
-      } catch {
-        return []
-      }
-    })
-    const issues: StrictIssue[] = []
-    parts.forEach((p, part) => {
-      try {
-        flexible.decode(p.str)
-      } catch (e) {
-        const err = e as { code?: string; index?: number; message?: string }
-        issues.push({ code: err.code ?? "input", message: err.message ?? String(e), index: p.offset + (err.index ?? 0), part })
-      }
-    })
-    const pl = plausibility(lines, lines.some((l) => l.some((pt) => pt.length > 2)))
-    return { id: "flexible", interp, label: describe(interp), lines, score: pl.score, prob: 1, issues, reasons: pl.reasons }
-  }
-  const opts = { precision: interp.precision, dimensions: interp.dims, zFactor: interp.dims === 3 ? interp.zFactor : undefined }
-  const raw = parts.map((p) => decode(p.str, { ...opts, strict: false }) as Pt[])
-  const lines = interp.order === "lnglat" ? swap(raw) : raw
-  const pl = plausibility(lines, interp.dims === 3)
-  return {
-    id: idOf(interp),
-    interp,
-    label: describe(interp),
-    lines,
-    score: pl.score,
-    prob: 1,
-    issues: strictIssues(parts, opts),
-    reasons: pl.reasons,
-  }
-}
-
 const idOf = (i: Interp) =>
   i.format === "flexible" ? "flexible" : `g${i.precision}-${i.order}-${i.dims}${i.dims === 3 ? "-" + i.zFactor : ""}`
+
+const interpOf = (c: LibCandidate): Interp =>
+  c.format === "flexible"
+    ? { format: "flexible" }
+    : { format: "google", precision: c.precision, order: c.order, dims: c.dimensions, ...(c.dimensions === 3 ? { zFactor: c.zFactor } : {}) }
+
+/**
+ * Decodes the input with one reading, leniently, and collects what strict
+ * decoding would throw from onIssue: the first issue of each polyline is
+ * that error.
+ */
+export function decodeWith(text: string, interp: Interp): Candidate {
+  const parts = splitInput(text)
+  const issues: StrictIssue[] = []
+  const lines = parts.map((p, part) => {
+    // The Google-format and Flexible errors differ only in their codes.
+    type Issue = { code: string; index?: number; message: string }
+    const seen: Issue[] = []
+    const onIssue = (e: Issue) => void seen.push(e)
+    let pts: Pt[] = []
+    try {
+      pts =
+        interp.format === "flexible"
+          ? (flexible.decode(p.str, { strict: false, onIssue }).polyline as Pt[])
+          : (decode(p.str, { precision: interp.precision, order: interp.order, dimensions: interp.dims, zFactor: interp.dims === 3 ? interp.zFactor : undefined, strict: false, onIssue }) as Pt[])
+    } catch (e) {
+      // A Flexible header that doesn't parse: nothing to decode.
+      seen.push(e as Issue)
+    }
+    // Strict mode stops at the first one, so that's the one to report.
+    const e = seen[0]
+    if (e) issues.push({ code: e.code ?? "input", message: e.message, index: p.offset + (e.index ?? 0), part })
+    return pts
+  })
+  // Lines decoded with the swapped order come out latitude first already:
+  // the options of a lnglat reading undo the swap.
+  const pl = plausibility(lines, interp.format === "google" ? interp.dims === 3 : lines.some((l) => l.some((pt) => pt.length > 2)))
+  return { id: idOf(interp), interp, label: describe(interp), lines, score: pl.score, prob: 1, issues, reasons: pl.reasons }
+}
 
 /** Every plausible reading of the input, best first. */
 export function detect(text: string): Detection {
   const parts = splitInput(text)
   if (!parts.length) return { candidates: [], confidence: "low" }
-  const all = parts.map((p) => p.str).join("")
-  const candidates: Candidate[] = []
-
-  const invalid = [...all].filter((c) => !GOOGLE_CHAR.test(c)).length
-  const flexChars = parts.every((p) => FLEX.test(p.str))
-  const values = parts.map((p) => valueCount(p.str))
-
-  // Google format readings. With characters outside ? to ~, the string is
-  // either damaged or not Google format; lenient decoding skips them.
-  const invalidPenalty = invalid ? -1.5 - 6 * (invalid / all.length) : 0
-  for (const dims of [2, 3] as const) {
-    // Three values per point only when every polyline has a multiple of 3.
-    if (dims === 3 && !values.every((v) => v % 3 === 0)) continue
-    for (const precision of PRECISIONS) {
-      const base = { format: "google" as const, precision, dims, zFactor: dims === 3 ? 100 : undefined }
-      const one = decodeWith(text, { ...base, order: "latlng" })
-      const raw = one.lines
-      for (const order of ["latlng", "lnglat"] as const) {
-        const lines = order === "latlng" ? raw : swap(raw)
-        const pl = order === "latlng" ? { score: one.score, reasons: one.reasons } : plausibility(lines, dims === 3)
-        // A truncated error under this reading that another reading doesn't
-        // have means the value count doesn't fit it.
-        const truncated = one.issues.some((i) => i.code === "truncated") ? -2 : 0
-        const interp: Interp = { ...base, order }
-        candidates.push({
-          id: idOf(interp),
-          interp,
-          label: describe(interp),
-          lines,
-          score:
-            pl.score +
-            PRECISION_PRIOR[precision] +
-            (order === "lnglat" ? -0.8 : 0) +
-            (dims === 3 ? -0.5 : 0) +
-            truncated +
-            invalidPenalty,
-          prob: 0,
-          issues: one.issues,
-          reasons: pl.reasons,
-        })
-      }
+  // Each line's readings, added up by reading. A reading has to be there for
+  // every line: Flexible only is when every line has a Flexible header.
+  const sums = new Map<string, { interp: Interp; score: number; reasons: Set<string>; n: number }>()
+  for (const p of parts) {
+    for (const c of detectOne(p.str, { precisions: PRECISIONS, isLand })) {
+      const interp = interpOf(c), id = idOf(interp)
+      const s = sums.get(id) ?? { interp, score: 0, reasons: new Set<string>(), n: 0 }
+      s.score += c.score
+      s.n++
+      for (const r of c.reasons) s.reasons.add(r)
+      sums.set(id, s)
     }
   }
-
-  // HERE Flexible Polyline: its own alphabet (letters, digits, - and _) and
-  // a header whose first character is the version, 1, written as B.
-  if (flexChars && parts.every((p) => p.str[0] === "B")) {
-    const c = decodeWith(text, { format: "flexible" })
-    if (c.lines.some((l) => l.length)) {
-      // Digits and - can't appear in Google format at all.
-      c.score += /[0-9-]/.test(all) ? 1.5 : 0
-      candidates.push(c)
+  const ranked = [...sums.entries()].filter(([, s]) => s.n === parts.length).sort((a, b) => b[1].score - a[1].score)
+  const max = ranked.length ? ranked[0][1].score : 0
+  const total = ranked.reduce((t, [, s]) => t + Math.exp(s.score - max), 0)
+  // Lines only for the readings the playground shows.
+  const candidates: Candidate[] = ranked.map(([id, s], i) => {
+    const c = i < 6 ? decodeWith(text, s.interp) : null
+    return {
+      id,
+      interp: s.interp,
+      label: describe(s.interp),
+      lines: c?.lines ?? [],
+      score: s.score,
+      prob: Math.exp(s.score - max) / total,
+      issues: c?.issues ?? [],
+      reasons: [...s.reasons],
     }
-  }
-
-  candidates.sort((a, b) => b.score - a.score)
-  softmax(candidates)
+  })
   return { candidates, confidence: confidenceOf(candidates) }
 }
