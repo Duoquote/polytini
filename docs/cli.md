@@ -1,12 +1,26 @@
 # CLI
 
 ```sh
-npx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
+pnpm dlx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
+```
+
+```sh
 bunx @duoquote/polytini encode --file points.csv
+```
+
+```sh
 deno run jsr:@duoquote/polytini/cli decode -p 6 -f geojson --file route.txt
 ```
 
-`pnpm dlx @duoquote/polytini` and `yarn dlx @duoquote/polytini` work too. The command is `polytini`:
+```sh
+yarn dlx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
+```
+
+```sh
+npx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
+```
+
+Installed in a project, the command is `polytini`:
 
 ```
 polytini 0.1.2: encode and decode Google encoded polylines

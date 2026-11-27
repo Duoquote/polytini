@@ -21,8 +21,23 @@ polytini encodes and decodes [Google encoded polylines](https://developers.googl
 ## Install
 
 ```sh
-npm install @duoquote/polytini      # or pnpm add, yarn add, bun add
+pnpm add @duoquote/polytini
+```
+
+```sh
+bun add @duoquote/polytini
+```
+
+```sh
 deno add jsr:@duoquote/polytini
+```
+
+```sh
+yarn add @duoquote/polytini
+```
+
+```sh
+npm i @duoquote/polytini
 ```
 
 ESM and CommonJS, with TypeScript types. Node 22 or newer, Bun, Deno, browsers and Cloudflare Workers.
@@ -118,11 +133,22 @@ await init(wasm);
 ## CLI
 
 ```sh
-npx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
-echo '[[38.5,-120.2],[40.7,-120.95]]' | npx @duoquote/polytini encode
+pnpm dlx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
 ```
 
-JSON, GeoJSON, CSV and plain lines; works with `bunx`, `pnpm dlx`, `yarn dlx` and `deno run jsr:@duoquote/polytini/cli`. All options: [docs/cli.md](docs/cli.md).
+```sh
+bunx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
+```
+
+```sh
+deno run jsr:@duoquote/polytini/cli decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
+```
+
+```sh
+npx @duoquote/polytini decode '_p~iF~ps|U_ulLnnqC_mqNvxq`@'
+```
+
+It reads stdin too: `echo '[[38.5,-120.2],[40.7,-120.95]]' | bunx @duoquote/polytini encode`. JSON, GeoJSON, CSV and plain lines. All options: [docs/cli.md](docs/cli.md).
 
 ## More
 
