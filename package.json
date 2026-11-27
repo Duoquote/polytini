@@ -157,7 +157,8 @@
     "src",
     "types",
     "dist",
-    "wasm/polytini.wasm"
+    "wasm/polytini.wasm",
+    "llms.txt"
   ],
   "engines": {
     "node": ">=22"
