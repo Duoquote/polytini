@@ -1,0 +1,7 @@
+{
+"type": "FeatureCollection",
+"features": [
+{ "type": "Feature", "properties": { "name": "Westminster to Trafalgar Square", "km": 2.4, "walk": 1 }, "geometry": { "type": "LineString", "coordinates": [ [ -0.1246, 51.5007 ], [ -0.1419, 51.5014 ], [ -0.1281, 51.5079 ] ] } },
+{ "type": "Feature", "properties": { "name": "Google example, Çağlayan", "km": 593.1, "walk": 2 }, "geometry": { "type": "LineString", "coordinates": [ [ -120.2, 38.5 ], [ -120.95, 40.7 ], [ -126.453, 43.252 ] ] } }
+]
+}

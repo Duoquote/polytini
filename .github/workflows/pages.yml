@@ -43,6 +43,8 @@ jobs:
       # ../src and its types from ../types, with no npm install at the root.
       - run: bun install --frozen-lockfile
       - run: bun run lint
+      # The playground's detector, fixes, compaction and file formats, under Node.
+      - run: bun run test
       - run: bun run build
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
