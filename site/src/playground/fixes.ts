@@ -286,20 +286,58 @@ export const FIXES: { id: FixId; label: string; explain: string }[] = [
   { id: "snap", label: "Round to precision", explain: "Rounds every coordinate to the output precision's grid." },
 ]
 
-export function runFix(id: FixId, c: Collection, precision = 5): FixResult {
+/** The fixes' settings. Each fix reads the ones it has; anything left out takes its default. */
+export type FixParams = {
+  /** rescale: the power of ten, instead of the most plausible one. */
+  k?: number
+  /** tail and spikes: how many times the usual step counts as a jump. */
+  factor?: number
+  /** split: the gap in meters, instead of defaultGap(). */
+  gap?: number
+  /** snap: decimals, instead of the output precision. */
+  digits?: number
+}
+
+/** The setting each fix has, for the Fix tab's controls. */
+export const FIX_PARAM: Partial<Record<FixId, keyof FixParams>> = {
+  rescale: "k",
+  tail: "factor",
+  spikes: "factor",
+  split: "gap",
+  snap: "digits",
+}
+
+/** The value a fix uses when its setting is left out, so the control can start there. */
+export function fixDefault(id: FixId, c: Collection, precision = 5): number | undefined {
+  switch (id) {
+    case "rescale":
+      return bestRescale(c)
+    case "tail":
+      return 20
+    case "spikes":
+      return 5
+    case "split":
+      return defaultGap(c)
+    case "snap":
+      return precision
+  }
+  return undefined
+}
+
+export function runFix(id: FixId, c: Collection, precision = 5, p: FixParams = {}): FixResult {
   switch (id) {
     case "swap":
       return swapLatLng(c)
     case "rescale": {
-      const k = bestRescale(c)
+      const k = p.k ?? bestRescale(c)
       return { ...rescale(c, k), note: k ? `times 10^${k}` : "already plausible" }
     }
     case "tail":
-      return dropTail(c)
+      return dropTail(c, p.factor ?? 20)
     case "dedupe":
       return dedupe(c)
     case "spikes":
-      return despike(c)
+      return despike(c, p.factor ?? 5)
     case "range-drop":
       return fixRange(c, "drop")
     case "range-clamp":
@@ -311,10 +349,12 @@ export function runFix(id: FixId, c: Collection, precision = 5): FixResult {
     case "reverse":
       return reverse(c)
     case "split":
-      return splitGaps(c)
+      return splitGaps(c, p.gap ?? defaultGap(c))
     case "merge":
       return mergeLines(c)
-    case "snap":
-      return { ...snap(c, precision), note: `${precision} decimals` }
+    case "snap": {
+      const d = p.digits ?? precision
+      return { ...snap(c, d), note: `${d} decimals` }
+    }
   }
 }
