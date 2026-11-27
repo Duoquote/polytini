@@ -7,7 +7,6 @@ import darkLogo from "@/assets/logo/dark.webp"
 import { Hero, LINKS } from "@/sections/hero"
 import { Playground } from "@/sections/playground"
 import { Strict } from "@/sections/strict"
-import { Precision } from "@/sections/precision"
 import { Formats } from "@/sections/formats"
 import { Integrations } from "@/sections/integrations"
 import { Benchmark } from "@/sections/benchmark"
@@ -16,7 +15,6 @@ import { Results } from "@/sections/results"
 const NAV = [
   ["playground", "Playground"],
   ["strict", "Strict"],
-  ["precision", "Precision"],
   ["formats", "Formats"],
   ["integrations", "Integrations"],
   ["benchmark", "Benchmark"],
@@ -78,7 +76,6 @@ export function App() {
         <Hero />
         <Playground />
         <Strict />
-        <Precision />
         <Formats />
         <Integrations />
         <Benchmark />

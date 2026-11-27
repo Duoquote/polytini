@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { CopyButton } from "@/components/copy-button"
+import { CodeInput } from "@/components/code-input"
 import { MapView, features, type MapFeatures } from "@/components/map-view"
 import { Section } from "@/components/section"
 import { ErrorBox } from "@/components/error-box"
@@ -283,14 +284,12 @@ export function Playground() {
               <Label htmlFor="pg-coords" className="sr-only">
                 Coordinates as JSON
               </Label>
-              <Textarea
+              <CodeInput
                 id="pg-coords"
                 value={coordsText}
-                spellCheck={false}
-                autoComplete="off"
-                className="h-80 font-mono text-xs"
-                aria-invalid={!!error && side === "coords"}
-                onChange={(e) => fromCoords(e.target.value, opts)}
+                className="h-80"
+                invalid={!!error && side === "coords"}
+                onChange={(text) => fromCoords(text, opts)}
               />
             </TabsContent>
           </Tabs>
