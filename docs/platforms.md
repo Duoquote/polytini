@@ -119,7 +119,7 @@ The best-at-what table is in the [README](../README.md#best-at-what). Every tabl
 
 ## What changed after 0.1.3
 
-The benchmark repo's numbers move about 30% between rounds, so these come from `bench/ab.js` instead: the old and the new code on the same inputs, in alternating fresh processes pinned to 4 cores, 10 or 12 rounds, with a 95% confidence interval. A against itself gave about ±2 to 3% that way. Time per call, new divided by old, so 0.70 is 30% faster. "same" means the interval included 1.00.
+The benchmark repo's numbers move about 30% between rounds, so these come from `bench/ab.js` instead: the old and the new code on the same inputs, in alternating fresh processes pinned to 4 cores, 10 or 12 rounds, with a 95% confidence interval. A against itself gave about ±2 to 3% that way. Time per call, new divided by old, so 0.70 is 30% faster. "same" means the interval included 1.00. Every call passes the precision, like the benchmark does.
 
 | | Node 22 | Node 24 | Node 26 | Bun 1.4.3 | Deno 2.5 | Chrome 157 |
 |---|--:|--:|--:|--:|--:|--:|
@@ -134,7 +134,7 @@ The benchmark repo's numbers move about 30% between rounds, so these come from `
 
 Three changes are behind it:
 
-- `10 ** precision` was computed on every call, which took about 18 ns on Node 24 and 26 and 58 ns on Node 22. That's 10 to 30% of a 10-point line, and it was most of the gap to `@mapbox/polyline` on short lines. At 10 points polytini went from 15% behind it to 16 to 22% ahead on Node 22, and from 22% behind to 5 to 8% behind on Node 24 and 26. It's a table of 16 numbers now. Bun never cared.
+- `10 ** precision` was computed on every call that passes a precision or an options object, which took about 18 ns on Node 24 and 26 and 58 ns on Node 22. A plain `decode(str)` never computed it, and didn't change. The benchmark passes the precision to every library, so it's what the tables there show. That's 10 to 30% of a 10-point line, and it was most of the gap to `@mapbox/polyline` on short lines. At 10 points polytini went from 15% behind it to 16 to 22% ahead on Node 22, and from 22% behind to 5 to 8% behind on Node 24 and 26. It's a table of 16 numbers now. Bun never cared.
 - The `Buffer` decoder copies the string with `utf8Write` instead of `ucs2Write`. `ucs2Write` took 0.24 to 0.45 ns per character on Node 22 and 26, `utf8Write` 0.04, and the count pass reads 4 characters per step instead of 2. A character outside ASCII makes the byte count differ from the length, and that string goes to the slow path, so strict mode is the same.
 - Deno's `TextDecoder` label and switch point, described above.
 
