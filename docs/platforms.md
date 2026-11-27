@@ -11,6 +11,83 @@ Each entry only has its own code where it measured faster than the portable core
 - Cloudflare Workers (the `workerd` condition, `src/deno.js`): the Deno entry, since it uses nothing Deno-only. Wrangler picked `src/browser.js` before this condition existed, and the Deno entry decoded faster than that in every run I did in workerd. It keeps the 512-point switch for encoding: starting at 16 made the real-world lines 6% slower there. See [Workers](#cloudflare-workers).
 - Everything else (`src/web.js`): the core alone. It uses no Node, Bun or Deno globals.
 
+## Module formats and tools
+
+The package is ESM, with a CommonJS build in `dist/` for whatever can't load ESM with `require()`. The root export's conditions, in the order they're checked:
+
+| Condition | File | Who matches it |
+|---|---|---|
+| `workerd` | `src/deno.js` | Cloudflare Workers (wrangler) |
+| `react-native` | `src/web.js` | Metro on iOS and Android. The Node entry's `node:buffer` doesn't exist there |
+| `browser` | `src/browser.js`, or `dist/web.cjs` for `require` | Bundlers for the web, Jest's jsdom environment, Metro on web |
+| `bun` | `src/bun.js` | Bun, for `import` and `require()` |
+| `module-sync` | `src/node.js` | Node 22.12 and newer, for `import` and `require()` |
+| `require` | `dist/node.cjs` | Node 22.0 to 22.11, Jest, Deno's `createRequire`, Yarn PnP |
+| `deno`, `node`, `default` | `src/deno.js`, `src/node.js`, `src/web.js` | |
+
+Inside `browser`, `module-sync` and `module` come before `require`, so webpack and esbuild keep bundling `src/browser.js` for `require()` as they did before 0.1.5, and only tools that can't load ESM there (Jest) get `dist/web.cjs`. That's `web.cjs` and not a browser CommonJS build because Jest's jsdom environment has no `TextEncoder` global. Every subpath has the same `bun` and `module-sync` conditions ahead of its `require`, and `/wasm` has a CommonJS build (`dist/wasm.cjs`) too.
+
+So on Node 22.12 and newer, in Bun and in Electron's main process, `require()` and `import` load the same files, and there's one `PolylineError` class for every subpath. Where `require()` gets `dist/` instead, each subpath is its own bundle with its own copy of the class, so check `err.name === 'PolylineError'` or `err.code` there.
+
+Node 22.12.x prints `ExperimentalWarning: CommonJS module ... is loading ES Module ... using require()` once when you `require()` polytini, because that's the version where `require()` of ESM stopped needing a flag. 22.13 and newer don't print it. The code works the same either way; update Node or pass `--disable-warning=ExperimentalWarning` to hide it.
+
+For tools that ignore `exports`, the package has `main` (`dist/node.cjs`), `module` (`src/web.js`), `browser` (`src/browser.js`) and `react-native` (`src/web.js`) fields, and a folder per subpath with its own `package.json` (`turf/package.json` and so on, written by `scripts/build.js`). That's what Parcel's defaults, TypeScript's `node10` resolution and React Native before 0.79 read.
+
+`dist/polytini.iife.js` is the browser entry as one minified script that sets a global `polytini` (5,382 bytes, 2,480 gzipped). See [CDNs](#cdns) for how to load it.
+
+`node test/tools/matrix.mjs` packs the package, installs the tarball and checks what each tool picks and that the result runs. CI runs the `--quick` part (Jest, Parcel, Metro, TypeScript, Node itself and the IIFE). From the full run on 27 November 2026, 0.1.4 against 0.1.5:
+
+| Check | 0.1.4 | 0.1.5 |
+|---|---|---|
+| Jest 30.5 CommonJS, node environment | `dist/node.cjs` | `dist/node.cjs` |
+| Jest CommonJS, jsdom environment | fails: gets `src/browser.js` (ESM) | `dist/web.cjs` |
+| Jest CommonJS, `require('/wasm')` | fails: ESM only | `dist/wasm.cjs` |
+| Jest ESM, Vitest 4.1 (node and jsdom) | ok | ok |
+| webpack 5.113 web, node, web `require()`, `/wasm` | ok | ok, the same files |
+| Rollup 4.68 with node-resolve, esbuild (browser, node, neutral), Vite 8.4 | ok | ok, the same files |
+| Parcel 2.16 defaults | fails: ignores `exports`, can't find `/turf` | `src/browser.js` |
+| Metro 0.84, iOS and Android, `import` | `src/web.js` | `src/web.js` |
+| Metro, iOS and Android, `require()` | fails: `dist/node.cjs` imports `node:buffer` | `src/web.js` |
+| Metro without package exports (React Native before 0.79) | fails: same | `src/web.js` |
+| Metro on web, `import` / `require()` | `src/browser.js` | `src/browser.js` / `dist/web.cjs` |
+| TypeScript `node10`, 5.9 and 6.0 | fails on subpaths | ok (TypeScript 7 removed `node10`) |
+| TypeScript `node16`, a CommonJS file that imports `/wasm` | fails: no CommonJS types for `/wasm` | ok on 5.9, 6.0 and 7 |
+| TypeScript `bundler`, 5.9, 6.0 and 7 | ok | ok |
+| TypeScript `classic` | fails | fails (removed in TypeScript 6; can't be fixed) |
+| Node 22.0 and 22.11, `require()` | `dist/node.cjs`; `/wasm` throws `ERR_REQUIRE_ESM` | `dist/node.cjs`; `/wasm` works |
+| Node 22.12 to 26, `require()` | `dist/node.cjs`, two `PolylineError` classes | `src/node.js`, one class |
+| Bun 1.4.3, `require()` | `dist/node.cjs`, two classes | `src/bun.js`, one class |
+| Electron 45.5 main process | `dist/node.cjs`, two classes | `src/node.js`, one class |
+| Deno 2.5 `createRequire` | `dist/node.cjs` | `dist/node.cjs` |
+| `test/smoke.js`: npm, pnpm, Yarn 4 PnP, Yarn 1, Bun, Deno | 6 of 6 | 6 of 6 |
+
+React Native is checked with Metro's resolver, not on a device. Hermes has no WebAssembly, so `/wasm` can't run there.
+
+## CDNs
+
+Without a bundler, import it from a CDN that serves ESM:
+
+```html
+<script type="module">
+  import { encode, decode } from 'https://esm.sh/@duoquote/polytini@0.1.5';
+  // or https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5/+esm
+  // or https://unpkg.com/@duoquote/polytini@0.1.5?module
+</script>
+```
+
+On jsDelivr, keep the `/+esm`. The bare URL (`https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5`) serves `src/browser.js` as is, and its relative imports don't resolve from a URL without a trailing slash, so `import` fails. Subpaths work the same way: `https://esm.sh/@duoquote/polytini@0.1.5/wasm`, `https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5/wasm/+esm`, or the file itself from unpkg, `https://unpkg.com/@duoquote/polytini@0.1.5/src/wasm.js`.
+
+For a plain `<script>` tag, use the IIFE build. It sets a global `polytini` with the browser entry's functions:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5/dist/polytini.iife.js"></script>
+<script>
+  polytini.decode('_p~iF~ps|U_ulLnnqC_mqNvxq`@'); // [[38.5, -120.2], [40.7, -120.95], [43.252, -126.453]]
+</script>
+```
+
+`node test/tools/matrix.mjs --cdn <version>` imports each of these URLs in headless Chrome and checks the results.
+
 ## WASM
 
 There's an opt-in WebAssembly build: a hand-written WAT module that assembles to 906 bytes, inlined as base64 so it loads the same way in browsers, bundlers, Node, Bun and Deno. Nothing loads it unless you import it:

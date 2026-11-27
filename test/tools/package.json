@@ -1,0 +1,22 @@
+{
+  "name": "polytini-tool-matrix",
+  "private": true,
+  "description": "Tools for test/tools/matrix.mjs. dependencies are what CI runs (--quick); devDependencies are the rest.",
+  "dependencies": {
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2",
+    "metro-resolver": "^0.84.6",
+    "parcel": "^2.16.4",
+    "ts59": "npm:typescript@~5.9.3",
+    "ts6": "npm:typescript@^6.0.3"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "electron": "^45.5.0",
+    "rollup": "^4.68.8",
+    "vite": "^8.4.0",
+    "vitest": "^4.1.12",
+    "webpack": "^5.113.0",
+    "webpack-cli": "^7.3.1"
+  }
+}

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+Packaging: nothing removed, the CommonJS build stays. Checked with `test/tools/matrix.mjs` against the packed tarball; the table is in [docs/platforms.md](docs/platforms.md#module-formats-and-tools).
+
+- `require()` gets the ESM sources on Node 22.12 and newer (the `module-sync` condition) and on Bun (`bun`, now ahead of `require`), so `require()` and `import` share one copy and one `PolylineError` class. Node 22.0 to 22.11, Jest, Deno's `createRequire` and Yarn PnP still get `dist/*.cjs`. Node 22.12.x prints an `ExperimentalWarning` for it; 22.13 and newer don't.
+- `/wasm` has a CommonJS build, `dist/wasm.cjs`. `require('@duoquote/polytini/wasm')` threw `ERR_REQUIRE_ESM` on Node 22.0 to 22.11 and in Jest.
+- A `react-native` condition (`src/web.js`): Metro's `require()` on iOS and Android used to get `dist/node.cjs`, which imports `node:buffer`.
+- `require` inside the `browser` condition (`dist/web.cjs`), for Jest's jsdom environment, which got ESM before. webpack and esbuild still bundle `src/browser.js` there.
+- `module`, `browser` and `react-native` fields, and a folder with a `package.json` per subpath, for tools that ignore `exports`: Parcel's defaults (which failed on `/turf`), TypeScript's `node10` (which failed on every subpath) and React Native before 0.79.
+- `dist/polytini.iife.js`: the browser entry as a global `polytini` for a `<script>` tag (5,382 bytes, 2,480 gzipped). No import gets bigger.
+- CI runs the cheap half of the tool matrix (Jest, Parcel, Metro, TypeScript, Node, the IIFE) on every push.
+
 ## 0.1.4
 
 Faster, with the same output. The numbers are paired before and after runs with `bench/ab.js`; the table is in [docs/platforms.md](docs/platforms.md#what-changed-after-013).

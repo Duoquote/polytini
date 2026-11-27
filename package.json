@@ -59,21 +59,37 @@
         "types": "./types/index.d.ts",
         "default": "./src/deno.js"
       },
+      "react-native": {
+        "types": "./types/index.d.ts",
+        "default": "./src/web.js"
+      },
       "browser": {
         "types": "./types/index.d.ts",
+        "module-sync": "./src/browser.js",
+        "module": "./src/browser.js",
+        "require": {
+          "types": "./dist/types/index.d.cts",
+          "default": "./dist/web.cjs"
+        },
         "default": "./src/browser.js"
+      },
+      "bun": "./src/bun.js",
+      "module-sync": {
+        "bun": "./src/bun.js",
+        "node": "./src/node.js"
       },
       "require": {
         "types": "./dist/types/index.d.cts",
         "default": "./dist/node.cjs"
       },
       "types": "./types/index.d.ts",
-      "bun": "./src/bun.js",
       "deno": "./src/deno.js",
       "node": "./src/node.js",
       "default": "./src/web.js"
     },
     "./web": {
+      "bun": "./src/web.js",
+      "module-sync": "./src/web.js",
       "require": {
         "types": "./dist/types/index.d.cts",
         "default": "./dist/web.cjs"
@@ -82,6 +98,8 @@
       "default": "./src/web.js"
     },
     "./node": {
+      "bun": "./src/node.js",
+      "module-sync": "./src/node.js",
       "require": {
         "types": "./dist/types/index.d.cts",
         "default": "./dist/node.cjs"
@@ -90,15 +108,29 @@
       "default": "./src/node.js"
     },
     "./browser": {
+      "bun": "./src/browser.js",
+      "module-sync": "./src/browser.js",
+      "require": {
+        "types": "./dist/types/index.d.cts",
+        "default": "./dist/browser.cjs"
+      },
       "types": "./types/index.d.ts",
       "default": "./src/browser.js"
     },
     "./wasm": {
+      "bun": "./src/wasm.js",
+      "module-sync": "./src/wasm.js",
+      "require": {
+        "types": "./dist/types/wasm.d.cts",
+        "default": "./dist/wasm.cjs"
+      },
       "types": "./types/wasm.d.ts",
       "default": "./src/wasm.js"
     },
     "./polytini.wasm": "./wasm/polytini.wasm",
     "./turf": {
+      "bun": "./src/turf.js",
+      "module-sync": "./src/turf.js",
       "require": {
         "types": "./dist/types/turf.d.cts",
         "default": "./dist/turf.cjs"
@@ -107,6 +139,8 @@
       "default": "./src/turf.js"
     },
     "./leaflet": {
+      "bun": "./src/leaflet.js",
+      "module-sync": "./src/leaflet.js",
       "require": {
         "types": "./dist/types/leaflet.d.cts",
         "default": "./dist/leaflet.cjs"
@@ -115,6 +149,8 @@
       "default": "./src/leaflet.js"
     },
     "./presets": {
+      "bun": "./src/presets.js",
+      "module-sync": "./src/presets.js",
       "require": {
         "types": "./dist/types/presets.d.cts",
         "default": "./dist/presets.cjs"
@@ -123,6 +159,8 @@
       "default": "./src/presets.js"
     },
     "./flexible": {
+      "bun": "./src/flexible.js",
+      "module-sync": "./src/flexible.js",
       "require": {
         "types": "./dist/types/flexible.d.cts",
         "default": "./dist/flexible.cjs"
@@ -131,6 +169,8 @@
       "default": "./src/flexible.js"
     },
     "./google": {
+      "bun": "./src/google.js",
+      "module-sync": "./src/google.js",
       "require": {
         "types": "./dist/types/google.d.cts",
         "default": "./dist/google.cjs"
@@ -139,6 +179,8 @@
       "default": "./src/google.js"
     },
     "./maplibre": {
+      "bun": "./src/maplibre.js",
+      "module-sync": "./src/maplibre.js",
       "require": {
         "types": "./dist/types/maplibre.d.cts",
         "default": "./dist/maplibre.cjs"
@@ -147,6 +189,8 @@
       "default": "./src/maplibre.js"
     },
     "./mapbox": {
+      "bun": "./src/mapbox.js",
+      "module-sync": "./src/mapbox.js",
       "require": {
         "types": "./dist/types/mapbox.d.cts",
         "default": "./dist/mapbox.cjs"
@@ -155,6 +199,8 @@
       "default": "./src/mapbox.js"
     },
     "./deckgl": {
+      "bun": "./src/deckgl.js",
+      "module-sync": "./src/deckgl.js",
       "require": {
         "types": "./dist/types/deckgl.d.cts",
         "default": "./dist/deckgl.cjs"
@@ -163,6 +209,8 @@
       "default": "./src/deckgl.js"
     },
     "./leaflet/auto": {
+      "bun": "./src/leaflet-auto.js",
+      "module-sync": "./src/leaflet-auto.js",
       "require": {
         "types": "./dist/types/leaflet-auto.d.cts",
         "default": "./dist/leaflet-auto.cjs"
@@ -178,6 +226,9 @@
   },
   "types": "./types/index.d.ts",
   "main": "./dist/node.cjs",
+  "module": "./src/web.js",
+  "browser": "./src/browser.js",
+  "react-native": "./src/web.js",
   "bin": {
     "polytini": "src/cli.js"
   },
@@ -186,7 +237,21 @@
     "types",
     "dist",
     "wasm/polytini.wasm",
-    "llms.txt"
+    "llms.txt",
+    "web/package.json",
+    "node/package.json",
+    "browser/package.json",
+    "wasm/package.json",
+    "turf/package.json",
+    "leaflet/package.json",
+    "presets/package.json",
+    "flexible/package.json",
+    "google/package.json",
+    "maplibre/package.json",
+    "mapbox/package.json",
+    "deckgl/package.json",
+    "leaflet/auto/package.json",
+    "openlayers/package.json"
   ],
   "engines": {
     "node": ">=22"
