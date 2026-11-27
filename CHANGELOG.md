@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.1.6
+
+Smaller bundles for what people actually import, with the same output, the same errors and the same speed. Nothing was removed.
+
+Gzipped bytes with esbuild for the browser, from `node scripts/size.js`. The first rows are what an app ships when it imports one or two functions; browser bundlers resolve the bare import to the browser entry.
+
+| | 0.1.5 | 0.1.6 |
+|---|--:|--:|
+| `import { decode }` | 1,164 | 1,065 |
+| `import { encode }` | 1,507 | 1,435 |
+| `import { decode, encode }` | 2,045 | 1,898 |
+| `import { decodeLatLng }` | 1,240 | 1,140 |
+| `/web`, `import { decode, encode }` | 1,770 | 1,692 |
+| browser entry, every export | 2,262 | 2,205 |
+| `/web`, every export | 1,984 | 1,992 |
+| node entry, every export | 2,621 | 2,607 |
+| `/wasm`, every export | 5,879 | 5,585 |
+| `/leaflet` | 1,989 | 1,910 |
+| `/maplibre` | 1,634 | 1,537 |
+| `/deckgl` | 2,039 | 1,913 |
+
+With Rollup (terser) and webpack 5, the same imports: `decode` 1,046 to 1,021 and 1,134 to 1,056, `encode` 1,438 to 1,433 and 1,515 to 1,508, both 1,897 to 1,907 and 2,058 to 1,967, every export 2,297 to 2,287 and 2,408 to 2,419. Every import and bundler is in [docs/platforms.md](docs/platforms.md#size).
+
+What changed:
+
+- `decode` and `decodeFlat` have their own fast loops, so decoding to arrays doesn't bring the `Float64Array` path. Both loops take the same parameters, declare their variables in the same order and use nothing from outside, so esbuild and terser name them alike and gzip finds the second in the first. A bundle with every export still pays 10 to 30 bytes for the second loop, which is why `/web` with every export is 8 bytes bigger.
+- The Deno and Workers decoders share the core's decode wrappers instead of repeating the option checks and the fallback to the exact path.
+- The browser entry's `TextEncoder`, `TextDecoder` and scratch buffer are created with `/* @__PURE__ */`, so a browser `encode` bundle drops the `TextEncoder` it never used. An unused `2 ** 29` is a plain number now, which esbuild can drop.
+- The exact decoder and encoder (precision 7 and up, other dimensions, objects, bad input) are a bit shorter. Same numbers, same error codes, indexes and messages.
+- `/turf` and `/deckgl` use the core's option helper instead of their own copy.
+- `/wasm` inlines its two modules as hex instead of base64. Hex keeps the same bytes as the same text, so gzip finds what the two modules share: 1,018 bytes gzipped for both, against 1,320. The file is 1.4 KB bigger before gzip. On Node 24, which has no `Uint8Array.fromHex`, the first `initSync()` in a process takes about 0.1 ms longer (0.81 to 0.87 ms before, 0.91 to 1.03 after); Node 26, Deno and Bun stayed within 0.03 ms.
+- `scripts/size.js` has a budget per import, so CI fails when a change pins code into a bundle that doesn't use it. The other budgets are lower. The size badge shows decode only and the whole browser entry.
+
+Tried and dropped, with the reasons in docs/platforms.md: a Node entry that bundlers can split (decode only would have been 1,507 bytes instead of 2,560, but decoding long lines got 2 to 3% slower on Node 24), one encode wrapper shared with the browser entry's TextDecoder path (`encodeFlat` got 6% slower in Chrome), short property names on the options object, and a table of error messages.
+
+Same behavior: the test suite on every entry and runtime, and a differential check that gave 0.1.5 and 0.1.6 the same 200,000 random and hand-picked calls on every entry, `/wasm` and the integrations (strict and not, every option, bad input) and compared results and errors: name, code, index and message. No differences.
+
+Same speed. Paired runs of `bench/ab.js` against 0.1.4's code (0.1.5 only changed `/wasm`), 10 rounds pinned to 4 cores. The machine was busy with other work, so the Node, Bun and Deno runs used `--mode same`: both versions in one process, sampled in ABBA order, which the tool allows for code that shares nothing. Chrome 156 ran each version in a fresh context, 12 rounds. Time per call, new divided by old, so 0.92 is 8% faster; "same" means the 95% interval included 1.00. 0.1.4 against itself stayed within 0.97 to 1.04.
+
+| | Node 22 | Node 24 | Node 26 | Bun 1.4.3 | Deno 2.5 | Chrome 156 |
+|---|--:|--:|--:|--:|--:|--:|
+| decode, 10 points | 0.93 | 0.92 | 0.98 | same | same | 0.92 |
+| decode, 100 points | same | same | same | same | same | 0.96 |
+| decode, 10,000 points | same | same | same | same | same | 0.98 |
+| decode, real-world lines | same | same | same | 1.01 | same | 0.95 |
+| decodeFlat, 10 points | same | same | same | 0.96 | 0.96 | 0.95 |
+| decodeFlat, real-world lines | same | 1.02 | same | same | 0.98 | 0.98 |
+| encode, 10 points | same | same | same | same | same | same |
+| encode, 100 points | same | 1.01 | same | same | same | same |
+| encode, 10,000 points | same | 0.99 | same | same | same | 0.99 |
+| encode, real-world lines | same | same | same | same | 0.99 | same |
+| encodeFlat, 10 points | same | same | same | same | same | same |
+| encodeFlat, real-world lines | same | same | same | same | 1.00 | same |
+
+Node 24's 1.02 for `decodeFlat` is inside what 0.1.4 against itself gave for that case (0.97), and the same code measured 0.99 in an earlier run. The `/web` entry on Node 24 decoded 2 to 9% faster at every length; Chrome's `/web` matched the browser entry. `/wasm` against 0.1.5 on Node 24, Bun and Chrome: no case outside the noise except faster ones: Chrome's `decode` (0.83 at 10 points, 0.96 on the real-world lines, from the core) and Bun's `decodeFlat` at 10 points (0.95).
+
 ## 0.1.5
 
 Packaging for the tools that couldn't use 0.1.4, a faster `/wasm` on V8, and two fixes. Nothing was removed.

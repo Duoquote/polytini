@@ -24,7 +24,7 @@
 //   values alternate at random, but slower on the GPS tracks, where they come
 //   in runs the branch predictor learns. Branchy won 5 of the 6 columns.
 // - Strings under 64 characters skip the copy and use the core's loop.
-import { opts, st, LIMIT, slowDecode, slowEncode, decodeLoop, flip } from './core.js';
+import { opts, st, LIMIT, slowDecode, slowEncode, decodeLoop, flatLoop, flip } from './core.js';
 
 // Scratch memory is reused between calls up to this size. Bigger inputs get
 // a temporary buffer, so one huge line doesn't pin megabytes for good.
@@ -127,7 +127,7 @@ export function fast(Buffer, grow = Infinity) {
   const decodeWith = (str, o, flat) => {
     const f = opts(o);
     if (st.dims != 2 || typeof str != 'string') return slowDecode(str, f, flat);
-    const out = str.length < 64 ? decodeLoop(str, f, st.swap, flat) : flat ? bigFlat(str, f, st.swap) : big(str, f);
+    const out = str.length < 64 ? (flat ? flatLoop(str, f, st.swap) : decodeLoop(str, f, st.swap)) : flat ? bigFlat(str, f, st.swap) : big(str, f);
     return out ? (st.swap && !flat ? flip(out) : out) : slowDecode(str, f, flat);
   };
 

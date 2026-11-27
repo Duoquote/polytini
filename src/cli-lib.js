@@ -6,7 +6,7 @@ import process from 'node:process';
 import { encode, decode, PolylineError } from './web.js';
 
 // Kept in sync with package.json and jsr.json by test/cli.test.js.
-export const VERSION = '0.1.5';
+export const VERSION = '0.1.6';
 
 const HELP = `polytini ${VERSION}: encode and decode Google encoded polylines
 

@@ -31,7 +31,7 @@
 // No deck.gl code is imported.
 /* @ts-self-types="../types/deckgl.d.ts" */
 import { decodeFlat } from './web.js';
-import { opts, st, fail } from './core.js';
+import { opts, st, fail, withOrder } from './core.js';
 
 // Decodes a 2D string into out[2k], out[2k + 1] as [lng, lat] from vertex k.
 // Returns the number of vertices, or -1 when the string needs the exact
@@ -126,7 +126,7 @@ function build(encoded, o, polygons) {
     max += ((values / d) | 0) + (polygons ? 1 : 0);
   }
   const out = new Type(max * size), ts = time ? new Float32Array(max) : null, starts = new Uint32Array(n + 1);
-  const exact = { ...(typeof o == 'number' ? { precision: o } : o), order: 'lnglat' };
+  const exact = withOrder(o);
   // Pass 2: decode each string at the running vertex offset.
   let k = 0;
   for (let i = 0; i < n; i++) {

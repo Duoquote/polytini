@@ -1,6 +1,6 @@
 {
   "name": "@duoquote/polytini",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Encode and decode Google encoded polylines, polyline6 included. Strict by default, no dependencies, with builds for Node, Bun, Deno, browsers and Cloudflare Workers, and adapters for Leaflet, MapLibre, Mapbox GL, OpenLayers, deck.gl, Turf and Google Maps.",
   "keywords": [
     "polyline",
