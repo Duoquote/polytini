@@ -13,7 +13,7 @@
 //   lines of a few hundred points slower than the core's string building, so
 //   it starts at 512 points. Both the cost and the best decoder depend on the
 //   runtime, so an entry can change them (tune below; deno.js does).
-import { st, LIMIT, decodeWith, flatWith, decodeLoop, flatLoop, encodeWith, encodeLoop } from './core.js';
+import { st, opts, LIMIT, slowEncode, decodeWith, flatWith, decodeLoop, flatLoop, encode as coreEncode, encodeFlat as coreEncodeFlat } from './core.js';
 
 const te = /* @__PURE__ */ new TextEncoder();
 // The decoder that makes the string, and the number of points encode starts
@@ -156,9 +156,15 @@ function bytesLoop(src, f, a, flat) {
 }
 
 // Short lines: the core's string building is faster than a TextDecoder call.
-const bytes = (src, o, flat) => encodeWith(src, o, flat, src?.length >= (flat ? 2 * min : min) ? bytesLoop : encodeLoop);
+// The long ones get their own copy of the core's wrapper: with one wrapper
+// calling both loops, its call site saw two functions.
+const bytes = (src, o, flat, core) => {
+  if (!(src?.length >= (flat ? 2 * min : min))) return core(src, o);
+  const f = opts(o);
+  return (st.dims == 2 && f <= 1e6 && (flat ? !(src.length % 2) : Array.isArray(src)) ? bytesLoop(src, f, +st.swap, flat) : null) ?? slowEncode(src, f, flat);
+};
 
 export const decode = (str, o) => decodeWith(str, o, pick);
 export const decodeFlat = (str, o) => flatWith(str, o, pickFlat);
-export const encode = (src, o) => bytes(src, o, 0);
-export const encodeFlat = (src, o) => bytes(src, o, 1);
+export const encode = (src, o) => bytes(src, o, 0, coreEncode);
+export const encodeFlat = (src, o) => bytes(src, o, 1, coreEncodeFlat);
