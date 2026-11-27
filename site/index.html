@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>polytini: encode and decode Google encoded polylines</title>
+    <meta
+      name="description"
+      content="Try polytini in your browser: decode and encode Google encoded polylines, see what strict mode catches, compare presets for OSRM, Valhalla and Mapbox, and time it against other libraries."
+    />
+    <link rel="canonical" href="https://duoquote.github.io/polytini/" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/polytini/favicon-64.png" />
+    <link rel="apple-touch-icon" href="/polytini/apple-touch-icon.png" />
+    <link rel="alternate" type="text/plain" title="llms.txt" href="/polytini/llms.txt" />
+    <link rel="sitemap" type="application/xml" href="/polytini/sitemap.xml" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="polytini" />
+    <meta property="og:title" content="polytini: encode and decode Google encoded polylines" />
+    <meta
+      property="og:description"
+      content="A polyline codec for Node, Bun, Deno, browsers and Workers. Strict by default, no dependencies. Try it in your browser."
+    />
+    <meta property="og:url" content="https://duoquote.github.io/polytini/" />
+    <meta property="og:image" content="https://duoquote.github.io/polytini/social-preview.png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="The polytini logo, a small bird sitting on a line, next to the text: Encode and decode Google polylines in Node, Bun, Deno, browsers and Workers" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareSourceCode",
+        "name": "polytini",
+        "description": "Encode and decode Google encoded polylines in JavaScript and TypeScript. Strict by default, no dependencies.",
+        "codeRepository": "https://github.com/Duoquote/polytini",
+        "programmingLanguage": "JavaScript",
+        "license": "https://opensource.org/licenses/MIT",
+        "url": "https://duoquote.github.io/polytini/"
+      }
+    </script>
+    <script>
+      // Set the theme before the first paint, the same way ThemeProvider does.
+      try {
+        var t = localStorage.getItem("theme")
+        var d = t === "dark" || ((!t || t === "system") && matchMedia("(prefers-color-scheme: dark)").matches)
+        document.documentElement.classList.add(d ? "dark" : "light")
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <p>This page needs JavaScript to run polytini in your browser. The code and docs are at
+      <a href="https://github.com/Duoquote/polytini">github.com/Duoquote/polytini</a>.</p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
