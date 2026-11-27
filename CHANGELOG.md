@@ -12,6 +12,8 @@ Packaging: nothing removed, the CommonJS build stays. Checked with `test/tools/m
 - `dist/polytini.iife.js`: the browser entry as a global `polytini` for a `<script>` tag (5,382 bytes, 2,480 gzipped). No import gets bigger.
 - CI runs the cheap half of the tool matrix (Jest, Parcel, Metro, TypeScript, Node, the IIFE) on every push.
 
+- `/wasm` finds Node's and Bun's `latin1Slice` without naming their `Buffer` class, so esm.sh stops adding its 8,772-byte (gzipped) `Buffer` polyfill to it. Encoding speed is the same: 0.99 to 1.01 on Node 24 and Bun in paired runs. It costs 30 bytes.
+
 ## 0.1.4
 
 Faster, with the same output. The numbers are paired before and after runs with `bench/ab.js`; the table is in [docs/platforms.md](docs/platforms.md#what-changed-after-013).

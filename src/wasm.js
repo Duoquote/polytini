@@ -5,7 +5,7 @@
 // The module (wasm/polytini.wat, under 1 KB) does the parsing and
 // formatting. The glue keeps one instance and one memory for the whole
 // program, grows it when an input doesn't fit, and moves data with
-// TextEncoder.encodeInto and Buffer#latin1Slice (or TextDecoder). Anything the module doesn't handle
+// TextEncoder.encodeInto and latin1Slice (or TextDecoder). Anything the module doesn't handle
 // (objects, other dimensions, bad input) goes to the JS core, so results and
 // errors are the same as the main entry's.
 /* @ts-self-types="../types/wasm.d.ts" */
@@ -17,9 +17,13 @@ export { PolylineError } from './core.js';
 // The module keeps nothing in its memory, so the glue uses all of it.
 const base = 0;
 let ex, mem, u8, f64, u32, input, size = 0;
-// Deno has a global Buffer too, but its latin1Slice is a JS polyfill that
-// made encoding 2 times slower there than TextDecoder.
-const latin1Slice = !globalThis.Deno && globalThis.Buffer?.prototype.latin1Slice;
+// Node's and Bun's latin1Slice, looked up without writing the class's name:
+// esm.sh adds an 8.8 KB gzipped polyfill of it to any module that mentions
+// it, and ArrayBuffer.name.slice(5) is the same string. Deno has the global
+// too, but its latin1Slice is a JS polyfill that made encoding 2 times
+// slower there than TextDecoder.
+const g = globalThis;
+const latin1Slice = !g.Deno && g.process?.versions?.node && g[ArrayBuffer.name.slice(5)]?.prototype.latin1Slice;
 // In Deno a UTF-8 TextDecoder is faster than a latin1 one for these ASCII
 // bytes (encode 7 to 31% faster in paired runs); elsewhere latin1 is.
 const te = new TextEncoder(), td = new TextDecoder(globalThis.Deno ? 'utf-8' : 'latin1');
