@@ -8,6 +8,7 @@
     "./browser": "./src/browser.js",
     "./node": "./src/node.js",
     "./wasm": "./src/wasm.js",
+    "./lite": "./src/lite.js",
     "./presets": "./src/presets.js",
     "./turf": "./src/turf.js",
     "./leaflet": "./src/leaflet.js",

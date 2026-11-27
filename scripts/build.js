@@ -5,7 +5,8 @@
 //   Yarn PnP. Node 22.12+ and Bun get src/ through the `module-sync` and `bun`
 //   conditions instead (package.json).
 // - dist/polytini.iife.js, the browser entry as a global `polytini`, for a
-//   <script> tag without a bundler.
+//   <script> tag without a bundler, and dist/polytini-lite.iife.js, /lite
+//   under the same global.
 // - One folder per subpath with a package.json (turf/package.json and so on),
 //   for resolvers that ignore "exports": TypeScript's node10, Parcel's
 //   defaults, older bundlers.
@@ -18,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const node = ['node', 'leaflet-auto'];
-const names = ['node', 'web', 'browser', 'wasm', 'turf', 'leaflet', 'leaflet-auto', 'presets', 'flexible', 'stream', 'google', 'maplibre', 'mapbox', 'deckgl'];
+const names = ['node', 'web', 'browser', 'wasm', 'lite', 'turf', 'leaflet', 'leaflet-auto', 'presets', 'flexible', 'stream', 'google', 'maplibre', 'mapbox', 'deckgl'];
 
 rmSync(root + 'dist', { recursive: true, force: true });
 for (const name of names) {
@@ -34,17 +35,20 @@ for (const name of names) {
     logLevel: 'warning',
   });
 }
-await build({
-  entryPoints: [`${root}src/browser.js`],
-  outfile: `${root}dist/polytini.iife.js`,
-  bundle: true,
-  minify: true,
-  format: 'iife',
-  globalName: 'polytini',
-  platform: 'browser',
-  target: 'es2020',
-  logLevel: 'warning',
-});
+// The same for /lite, under the same global, so switching is one URL.
+for (const [entry, out] of [['browser', 'polytini'], ['lite', 'polytini-lite']]) {
+  await build({
+    entryPoints: [`${root}src/${entry}.js`],
+    outfile: `${root}dist/${out}.iife.js`,
+    bundle: true,
+    minify: true,
+    format: 'iife',
+    globalName: 'polytini',
+    platform: 'browser',
+    target: 'es2020',
+    logLevel: 'warning',
+  });
+}
 // CommonJS type declarations: the same .d.ts files as .d.cts, so
 // TypeScript under node16/nodenext doesn't read the ESM types for require().
 mkdirSync(root + 'dist/types', { recursive: true });
@@ -70,4 +74,4 @@ for (const [sub, v] of Object.entries(pkg.exports)) {
   mkdirSync(root + name, { recursive: true });
   writeFileSync(root + file, JSON.stringify(stub, null, 2) + '\n');
 }
-console.log('built dist/*.cjs, dist/polytini.iife.js, dist/types/*.d.cts and the subpath folders');
+console.log('built dist/*.cjs, dist/polytini.iife.js, dist/polytini-lite.iife.js, dist/types/*.d.cts and the subpath folders');

@@ -128,6 +128,16 @@
       "default": "./src/wasm.js"
     },
     "./polytini.wasm": "./wasm/polytini.wasm",
+    "./lite": {
+      "bun": "./src/lite.js",
+      "module-sync": "./src/lite.js",
+      "require": {
+        "types": "./dist/types/lite.d.cts",
+        "default": "./dist/lite.cjs"
+      },
+      "types": "./types/lite.d.ts",
+      "default": "./src/lite.js"
+    },
     "./turf": {
       "bun": "./src/turf.js",
       "module-sync": "./src/turf.js",
@@ -252,6 +262,7 @@
     "node/package.json",
     "browser/package.json",
     "wasm/package.json",
+    "lite/package.json",
     "turf/package.json",
     "leaflet/package.json",
     "presets/package.json",
