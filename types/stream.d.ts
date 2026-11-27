@@ -73,8 +73,9 @@ export type PointsChunk = ArrayLike<number> | LatLngLike | ArrayLike<ArrayLike<n
  * Errors are exactly those of `decode` on the whole string: an invalid
  * character throws from the `write` that reads it, with the index in the
  * whole input, and a cut-off string throws `'truncated'` from `end`. After
- * an error, every call throws it again. After `end`, the decoder starts a
- * new polyline.
+ * an error, every call throws it again. With `strict: false`, `onIssue`
+ * gets the issues decode would report, with indexes in the whole input.
+ * After `end`, the decoder starts a new polyline.
  */
 export class PolylineDecoder<O extends StreamOptions | number = TupleOptions> {
   /** Reads the options, the same ones decode takes; throws PolylineError `'option'` on a bad one. */
@@ -135,6 +136,11 @@ export interface LinesOptions extends StreamOptions {
    * `line`. `'skip'` leaves the line out and passes the error to `onError`.
    */
   errors?: 'throw' | 'skip';
+  /**
+   * With `strict: false`, as for decode, with the index in that line and
+   * the 1-based line number as `line` on each issue.
+   */
+  onIssue?(issue: PolylineError & { line: number }): void;
   /** Called with each skipped line's error and its line number, with `errors: 'skip'`. */
   onError?: (error: Error & { line: number }, line: number) => void;
 }

@@ -330,10 +330,11 @@ export function decodeMany(lines, o) {
 // The JS path for decodeMany, for bad lines (strict mode throws on the
 // first one) and anything the module doesn't take.
 function many(lines, o) {
-  const parts = lines.map((s) => jsFlat(s, o)), starts = new Uint32Array(parts.length + 1);
+  // dims first: an onIssue callback can decode with other options.
+  const d = st.dims, parts = lines.map((s) => jsFlat(s, o)), starts = new Uint32Array(parts.length + 1);
   let n = 0;
-  parts.forEach((p, i) => (starts[i + 1] = n += p.length / st.dims));
-  const coords = new Float64Array(n * st.dims);
+  parts.forEach((p, i) => (starts[i + 1] = n += p.length / d));
+  const coords = new Float64Array(n * d);
   let at = 0;
   for (const p of parts) coords.set(p, (at += p.length) - p.length);
   return { coords, starts };

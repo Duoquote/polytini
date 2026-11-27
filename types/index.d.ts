@@ -52,6 +52,15 @@ export interface Options {
    * encode treats missing or non-finite coordinates as 0.
    */
   strict?: boolean;
+  /**
+   * With `strict: false`, called with each problem decoding skips over, as
+   * the PolylineError strict mode would throw for it (not thrown): every
+   * invalid character, every value past 2^53 (once, where it passes), and a
+   * cut-off end. The first one is exactly what strict mode throws. Decoding
+   * goes on after it returns, and an error thrown from it stops decoding.
+   * Strict mode and encode never call it.
+   */
+  onIssue?(issue: PolylineError): void;
   /** Values per point, 1 to 16. Default 2. The third can be elevation, like GraphHopper's. */
   dimensions?: number;
   /** Factor for the third and later values. Defaults to the main factor. */

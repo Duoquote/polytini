@@ -106,7 +106,7 @@ From the same run, across every runtime (geometric mean over runtimes and line l
 | `toGeoJSON(str)` / `fromGeoJSON(geo)` | GeoJSON LineString in and out |
 | `PolylineError` | What strict mode throws, with a `code` and an `index` |
 
-Options are a precision number or `{ precision, factor, order, strict, dimensions, zFactor }`. Details, errors and rounding: [docs/api.md](docs/api.md).
+Options are a precision number or `{ precision, factor, order, strict, dimensions, zFactor, onIssue }`. With `strict: false`, `onIssue` gets each error strict mode would have thrown, so you can decode a broken string and still say what was wrong with it. Details, errors and rounding: [docs/api.md](docs/api.md).
 
 ## Integrations
 
@@ -121,17 +121,18 @@ Options are a precision number or `{ precision, factor, order, strict, dimension
 | `@duoquote/polytini/deckgl` | deck.gl binary paths and polygons, no array per point |
 | `@duoquote/polytini/flexible` | HERE's Flexible Polyline, a drop-in for `@here/flexpolyline` |
 | `@duoquote/polytini/stream` | Decode a polyline as it downloads, encode points as they come, one polyline per line (NDJSON) |
+| `@duoquote/polytini/detect` | Work out a string's precision, coordinate order, values per point or HERE format, and decode it |
 | `@duoquote/polytini/wasm` | Opt-in WebAssembly build, with batch calls |
 
 None of them import their map library; you pass it in or use what they return. Examples for each: [docs/integrations.md](docs/integrations.md).
 
 ## Notes
 
-- The precision isn't stored in the string. A `polyline6` string decoded at 5 gives coordinates ten times too big, with no error.
+- The precision isn't stored in the string. A `polyline6` string decoded at 5 gives coordinates ten times too big, with no error. When you don't know where a string came from, `@duoquote/polytini/detect` ranks the readings; it got the precision right for 99.9% of the real-world lines at precision 5, 6 and 7, but it can't always tell a latitude and longitude swap ([docs/api.md](docs/api.md#detecting-the-encoding)).
 - Strict mode throws on invalid characters, cut-off strings and NaN coordinates. Pass `strict: false` to never throw.
 - `/wasm` pays off for typed arrays (`decodeFlat`, `encodeFlat`) and for many lines in one call (`decodeMany`). On V8 (Chrome, Node, Deno) it also uses JS String Builtins, which made short lines 10 to 65% faster. For `[lat, lng]` arrays the default entry is as fast or faster. Numbers: [docs/platforms.md](docs/platforms.md#wasm).
 - Need a small browser bundle? `@duoquote/polytini/lite` is 295 bytes gzipped for decode and 503 for both, as fast as the default entry in browsers, precision up to 6, and still strict. On Node, Bun and Deno the default entry is faster on long lines, so use that there: [docs/api.md](docs/api.md#smaller-lite).
-- Size depends on what you import, because bundlers drop what you don't use. In a browser bundle `import { decode }` is 1,065 bytes gzipped, `import { decode, encode }` 1,898, and every export 2,205. The small single-purpose polyline libraries are 230 to 500 bytes; the difference is strict mode, the exact path for precision 7 and up, and the options. Every import and bundler: [docs/platforms.md](docs/platforms.md#size).
+- Size depends on what you import, because bundlers drop what you don't use. In a browser bundle `import { decode }` is 1,115 bytes gzipped, `import { decode, encode }` 1,968, and every export 2,272. The small single-purpose polyline libraries are 230 to 500 bytes; the difference is strict mode, the exact path for precision 7 and up, and the options. Every import and bundler: [docs/platforms.md](docs/platforms.md#size).
 - Each runtime gets its own entry through package.json conditions (`node`, `bun`, `deno`, `workerd`, `browser`, `react-native`). Why each one exists, and what Jest, webpack, Vite, Parcel, Metro and TypeScript pick: [docs/platforms.md](docs/platforms.md).
 
 ## Cloudflare Workers

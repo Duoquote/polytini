@@ -1,6 +1,6 @@
 {
   "name": "@duoquote/polytini",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Encode and decode Google encoded polylines, polyline6 included. Strict by default, no dependencies, with builds for Node, Bun, Deno, browsers and Cloudflare Workers, and adapters for Leaflet, MapLibre, Mapbox GL, OpenLayers, deck.gl, Turf and Google Maps.",
   "keywords": [
     "polyline",
@@ -188,6 +188,26 @@
       "types": "./types/stream.d.ts",
       "default": "./src/stream.js"
     },
+    "./detect": {
+      "bun": "./src/detect.js",
+      "module-sync": "./src/detect.js",
+      "require": {
+        "types": "./dist/types/detect.d.cts",
+        "default": "./dist/detect.cjs"
+      },
+      "types": "./types/detect.d.ts",
+      "default": "./src/detect.js"
+    },
+    "./detect/land": {
+      "bun": "./src/detect-land.js",
+      "module-sync": "./src/detect-land.js",
+      "require": {
+        "types": "./dist/types/detect-land.d.cts",
+        "default": "./dist/detect-land.cjs"
+      },
+      "types": "./types/detect-land.d.ts",
+      "default": "./src/detect-land.js"
+    },
     "./google": {
       "bun": "./src/google.js",
       "module-sync": "./src/google.js",
@@ -268,6 +288,8 @@
     "presets/package.json",
     "flexible/package.json",
     "stream/package.json",
+    "detect/package.json",
+    "detect/land/package.json",
     "google/package.json",
     "maplibre/package.json",
     "mapbox/package.json",

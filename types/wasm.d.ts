@@ -65,7 +65,11 @@ export interface ManyLines {
   starts: Uint32Array;
 }
 
-/** Decodes many lines in one WASM call. Strict mode throws on the first bad line. */
+/**
+ * Decodes many lines in one WASM call. Strict mode throws on the first bad
+ * line. With `strict: false`, `onIssue` gets each line's issues in order,
+ * with the index in that line.
+ */
 export function decodeMany(lines: readonly string[], options?: P.OptionsArg): ManyLines;
 
 /** Encodes many lines in one WASM call: arrays of points, or the { coords, starts } shape decodeMany returns. */

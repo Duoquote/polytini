@@ -229,13 +229,13 @@ What a bundle gets depends on what it imports, so the first rows are imports. Mi
 
 | import | minified | gzipped |
 |---|--:|--:|
-| `import { decode }` | 1907 B | 1065 B |
-| `import { encode }` | 3053 B | 1435 B |
-| `import { decode, encode }` | 4222 B | 1898 B |
-| `import { decodeLatLng }` | 2057 B | 1140 B |
-| `import { toGeoJSON }` | 2053 B | 1137 B |
-| `/web`, `import { encode }` | 2205 B | 1223 B |
-| `/web`, `import { decode, encode }` | 3374 B | 1692 B |
+| `import { decode }` | 2002 B | 1115 B |
+| `import { encode }` | 3076 B | 1449 B |
+| `import { decode, encode }` | 4317 B | 1968 B |
+| `import { decodeLatLng }` | 2152 B | 1192 B |
+| `import { toGeoJSON }` | 2148 B | 1190 B |
+| `/web`, `import { encode }` | 2228 B | 1238 B |
+| `/web`, `import { decode, encode }` | 3469 B | 1758 B |
 | `/lite`, `import { decode }` | 478 B | 297 B |
 | `/lite`, `import { encode }` | 505 B | 349 B |
 | `/lite`, `import { decode, encode }` | 937 B | 508 B |
@@ -244,24 +244,26 @@ Whole entries, every export:
 
 | entry | minified | gzipped |
 |---|--:|--:|
-| default / web | 4369 B | 1992 B |
-| browser (the "browser" condition) | 5243 B | 2205 B |
-| node | 5679 B | 2607 B |
-| bun | 5679 B | 2607 B |
-| deno | 6276 B | 2503 B |
-| wasm (JS glue + both inlined modules) | 14239 B | 5585 B |
-| leaflet | 3880 B | 1910 B |
-| turf | 4646 B | 2158 B |
+| default / web | 4466 B | 2056 B |
+| browser (the "browser" condition) | 5342 B | 2272 B |
+| node | 5776 B | 2671 B |
+| bun | 5776 B | 2671 B |
+| deno | 6377 B | 2571 B |
+| wasm (JS glue + both inlined modules) | 14336 B | 5655 B |
+| leaflet | 3975 B | 1976 B |
+| turf | 4745 B | 2225 B |
 | presets | 818 B | 284 B |
-| flexible | 4175 B | 2036 B |
-| stream | 8204 B | 3624 B |
-| stream, PolylineDecoder only | 3336 B | 1717 B |
-| google | 3858 B | 1913 B |
+| flexible | 4299 B | 2110 B |
+| stream | 8384 B | 3721 B |
+| stream, PolylineDecoder only | 3451 B | 1782 B |
+| google | 3953 B | 1979 B |
 | openlayers | 1998 B | 1068 B |
-| maplibre | 2970 B | 1537 B |
-| mapbox | 2970 B | 1537 B |
-| deckgl | 3953 B | 1913 B |
-| cli | 16006 B | 6918 B |
+| maplibre | 3069 B | 1585 B |
+| mapbox | 3065 B | 1587 B |
+| deckgl | 4048 B | 1958 B |
+| detect | 9351 B | 4048 B |
+| detect/land | 4345 B | 2067 B |
+| cli | 16124 B | 6987 B |
 
 The same imports with Rollup (node-resolve, commonjs, terser) and webpack 5 in production mode, gzipped, `import * as m` for every export (which also keeps the namespace object):
 

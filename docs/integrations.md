@@ -114,4 +114,4 @@ const str = encode({ polyline: [[50.10228, 8.69821, 112.5], [50.10201, 8.69567, 
 const { precision, thirdDim, polyline } = decode(str);
 ```
 
-The same arguments and results as `@here/flexpolyline`, so it's a drop-in. It matches every line of HERE's official test data, including precision 11 and up, where `@here/flexpolyline` itself doesn't.
+The same arguments and results as `@here/flexpolyline`, so it's a drop-in. Unlike it, `decode` also takes `{ strict: false, onIssue }`: it then skips invalid characters and drops a cut-off last point, like the Google-format decoders, and tells `onIssue` about each. A bad header always throws. It matches every line of HERE's official test data, including precision 11 and up, where `@here/flexpolyline` itself doesn't.

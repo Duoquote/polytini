@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.1.9
+
+Two additions: `@duoquote/polytini/detect`, which works out how a string was encoded, and `onIssue`, which says what lenient decoding skipped. Strict output, strict errors and lenient output are the same as in 0.1.8, whose codec is 0.1.7's.
+
+`@duoquote/polytini/detect`, a new entry. Docs: [docs/api.md](docs/api.md#detecting-the-encoding).
+
+- `detect(str)` ranks the readings of a string: Google format at precision 5, 6, 7, 4 and 8, latitude or longitude first, two or three values per point (GraphHopper's elevation), and HERE's Flexible Polyline. Each comes with a `confidence`, whether strict mode accepts it (`valid`, and the `issue` it throws), `reasons`, the matching `presets`, and `options` to pass to `decode`. `decodeAuto(str)` decodes with the best one.
+- It scores what real geometry looks like: coordinates in range, typical step lengths, no huge jumps, each step going on from the last, elevation in range, valid in strict mode, and a prior for the common precisions. The string is decoded once with `decodeFlat`, and every reading is scored on 256 points spread over the line: 1.1 ms for a 10,000-point line on Node 25 and 0.65 ms on Bun.
+- Right on 100% of the 1000 real-world lines at precision 5 and 99.9% re-encoded at 6 and 7, and on all of the generated tracks in 12 places, from the poles to the antimeridian, at precision 5 and 6 and with elevation. Latitude and longitude swaps are the weak part: 18.5% of the swapped generated tracks and none of the swapped real-world lines, because when both readings land on land nothing in the string tells them apart.
+- `@duoquote/polytini/detect/land` is a 1 degree land mask for `detect(str, { isLand })`, 2,067 bytes gzipped. It brings the swapped tracks to 49% and costs lines that it counts as sea, like a track on the Ross Ice Shelf. Or pass your own `isLand`. The table with each mask size is in the docs.
+- 4,048 bytes gzipped. It uses the core's decoder and `/flexible`'s, so no other entry grew. `/flexible` builds its encode table with a pure call now, so a bundle that only decodes Flexible drops it.
+- Ported from the demo site's playground, which had its own detector. `node scripts/detect-accuracy.js` prints the accuracy tables.
+
+`onIssue`, for every decoder that has a lenient mode. Docs: [docs/api.md](docs/api.md#reporting-what-lenient-mode-skipped).
+
+- `decode(str, { strict: false, onIssue(e) { ... } })` calls `onIssue` with a `PolylineError` for each problem lenient decoding skips: every invalid character, every value past 2^53 (once, where it passes), and a cut-off end. The first one is exactly the error strict mode throws for that input, with the same code, index and message. Decoding goes on after it; throw from it to stop. With `strict: true` it's never called. Docs: [docs/api.md](docs/api.md#reporting-what-lenient-mode-skipped).
+- It works in `decodeFlat`, `decodeLatLng`, `toGeoJSON` and the presets on every entry, in `/wasm` (`decodeMany` reports each line's issues), in the integrations that decode (Google, MapLibre, Mapbox, Turf, deck.gl, Leaflet), and in `/stream`, where the index is in the whole input wherever the chunks were cut, and the line decoders add the line number as `line`.
+- `/flexible`'s `decode` takes `{ strict: false, onIssue }` too, which is new: it skips invalid characters and drops an incomplete last point like the Google-format decoders. A bad header still throws.
+- Only the slow decoder that already handles bad input reads it, so decoding valid input runs the same code as before. In paired runs against 0.1.7 (`bench/ab.js`, 10 rounds: decode and decodeFlat at 10 and 100 points and on the real-world lines, and decode with an options object) every 95% interval on Node 24, Bun, Deno and Chrome included 1.00, except Node 24 decode on the real-world lines at 1.013 (1.000 to 1.025). 0.1.7 against itself was as far off: 0.984 (0.973 to 0.996) for decodeFlat on the same lines.
+- Gzipped, `import { decode }` grew by 50 bytes to 1,115, every export of the browser entry by 67 to 2,272, `/stream` by 97 to 3,721 (it also tags issues with the line) and `/flexible` by 74 to 2,110 for its new lenient mode.
+- `test/issues.test.js` checks on every entry, on random and broken inputs, that the first issue matches what strict mode throws, that the output is the same as without `onIssue`, and that strict mode never calls it. A differential run against the 0.1.7 sources on 60,000 random and broken inputs per runtime (Node, Bun, Deno) found no difference in any output or error.
+
 ## 0.1.8
 
 `@duoquote/polytini/lite`, a new entry for small browser bundles: `decode(str, precision?)` and `encode(points, precision?)` for `[lat, lng]` tuples at precision 0 to 6, and nothing else. No other entry changed.

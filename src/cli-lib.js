@@ -9,7 +9,7 @@ import { PolylineDecoder, PolylineEncoder, PolylineError } from './stream.js';
 import { Lines } from './lines.js';
 
 // Kept in sync with package.json and jsr.json by test/cli.test.js.
-export const VERSION = '0.1.8';
+export const VERSION = '0.1.9';
 
 const HELP = `polytini ${VERSION}: encode and decode Google encoded polylines
 

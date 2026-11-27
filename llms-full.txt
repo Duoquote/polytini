@@ -68,6 +68,8 @@ Import paths:
 | `@duoquote/polytini/maplibre`, `/mapbox` | `polylineData`, `polylineSource`, `addPolylineLayer`, `setPolylineData`. |
 | `@duoquote/polytini/deckgl` | `binaryPaths` and `binaryPolygons`, deck.gl binary data for `PathLayer`, `TripsLayer` and `SolidPolygonLayer`. |
 | `@duoquote/polytini/flexible` | HERE Flexible Polyline: `encode`, `decode`, `header` and the third-dimension constants. Same shapes as `@here/flexpolyline`. |
+| `@duoquote/polytini/detect` | `detect(str, options?)` ranks the readings of a string: Google format at precision 5, 6, 7, 4 and 8, latitude or longitude first, 2 or 3 values per point, or HERE Flexible. Each has `precision`, `order`, `dimensions`, `confidence`, `valid`, `issue`, `reasons`, `presets` and `options` for `decode`. `decodeAuto(str)` also decodes with the best one. |
+| `@duoquote/polytini/detect/land` | `isLand(lat, lng)`, a 1 degree land mask (2 KB gzipped) to pass as `detect(str, { isLand })`. |
 | `@duoquote/polytini/stream` | Streaming, with the same results and errors as `decode` and `encode`: `DecodeStream` and `EncodeStream` (TransformStreams), `PolylineDecoder` and `PolylineEncoder` (`write`, `end`), `DecodeLinesStream` and `EncodeLinesStream` (one polyline per line, NDJSON with `field`), `decodeIterable`, `encodeIterable`, `decodeLines`, `encodeLines`. |
 | CLI | `pnpm dlx @duoquote/polytini decode "kviyHviWkCbkBsg@guA"`, `bunx @duoquote/polytini encode 51.5007,-0.1246 51.5014,-0.1419`, from JSR `deno run -R jsr:@duoquote/polytini/cli` (`-R` for `--file`), `yarn dlx @duoquote/polytini` (Yarn 2 and newer; `-q` hides its install log), or `npx @duoquote/polytini decode --lines --file routes.txt`, which also works for Yarn 1 users. |
 
@@ -78,8 +80,8 @@ Mistakes to avoid:
 - Coordinate order. `encode` and `decode` use `[lat, lng]` by default, like Google. GeoJSON, OSRM, Valhalla, Mapbox, MapLibre and deck.gl use `[lng, lat]`. Pass `order: 'lnglat'` or a preset instead of swapping by hand. The string itself always stores latitude first; `order` only changes the tuples you pass in and get back. `toGeoJSON` and `fromGeoJSON` are always `[lng, lat]`.
 - The presets carry an order too. `osrm`, `osrm6`, `valhalla`, `stadia`, `graphhopper`, `graphhopper3d`, `openrouteservice`, `openrouteservice3d`, `mapbox` and `mapbox6` are `'lnglat'`; `google`, `strava` and `otp` are `'latlng'`. So `decode(str, osrm6)` gives `[lng, lat]`, and `decode(str, 6)` gives `[lat, lng]`.
 - `decodeLatLng` always returns `{ lat, lng }` the right way round, with a precision or any preset (`decodeLatLng(str, osrm6)`). Before 0.1.3 a `'lnglat'` preset swapped them, so pass only a precision if you're stuck on an older version.
-- The precision isn't stored in the string, so both sides have to agree. Google, Strava, OSRM `polyline` and Mapbox `polyline` use 5. OSRM `polyline6`, Valhalla, Stadia and Mapbox `polyline6` use 6. A precision 6 string decoded at 5 gives coordinates 10 times too big (often outside ±90 latitude). A precision 5 string decoded at 6 gives coordinates 10 times too small, which still look valid. Neither throws.
-- Strict mode is on by default. Malformed input throws a `PolylineError` with a `code` (`'char'`, `'truncated'`, `'overflow'`, `'coordinate'`, `'input'`, `'option'`, `'init'`) and, where it makes sense, an `index`. A `'truncated'` error usually means the string was cut somewhere upstream, for example by a URL or a database column. Fix the input, or pass `{ strict: false }` on purpose: then decode skips invalid characters and drops an incomplete last point, and encode treats missing or non-finite coordinates as 0.
+- The precision isn't stored in the string, so both sides have to agree. Google, Strava, OSRM `polyline` and Mapbox `polyline` use 5. OSRM `polyline6`, Valhalla, Stadia and Mapbox `polyline6` use 6. A precision 6 string decoded at 5 gives coordinates 10 times too big (often outside ±90 latitude). A precision 5 string decoded at 6 gives coordinates 10 times too small, which still look valid. Neither throws. Use the precision the source documents. Only when it's unknown, `detect` from `@duoquote/polytini/detect` guesses it from the numbers; check `confidence`, and know that a latitude and longitude swap often can't be told apart.
+- Strict mode is on by default. Malformed input throws a `PolylineError` with a `code` (`'char'`, `'truncated'`, `'overflow'`, `'coordinate'`, `'input'`, `'option'`, `'init'`) and, where it makes sense, an `index`. A `'truncated'` error usually means the string was cut somewhere upstream, for example by a URL or a database column. Fix the input, or pass `{ strict: false }` on purpose: then decode skips invalid characters and drops an incomplete last point, and encode treats missing or non-finite coordinates as 0. To decode leniently and still report the problem, add `onIssue: (err) => ...`: it gets the `PolylineError` strict mode would have thrown (and any later ones), without throwing. Don't decode twice, once strict and once lenient, for that.
 - Polylines often contain a backslash. In a JS or JSON string literal, write it as `\\`. On the command line, quote the polyline: single quotes in bash, zsh, fish and PowerShell, double quotes in cmd. A polyline can contain `` ` ``, `\`, `|` and `^` but never `'`, `"`, `$`, `%` or `!`. In cmd, a polyline that ends in `\` needs it doubled (`"...\\"`). Or use `--file`.
 - A fetch body or a file read in chunks: use `@duoquote/polytini/stream` (`res.body.pipeThrough(new DecodeStream())`) instead of concatenating the chunks. Points come out per chunk, and strict mode throws the same `PolylineError` code and index as `decode` on the whole string, a `'truncated'` one at the end.
 - `/wasm` needs `await init()` or `initSync()` once before any call, or it throws a `PolylineError` with code `'init'`. On Cloudflare Workers, WebAssembly can't be compiled from bytes, so pass the module: `import wasm from '@duoquote/polytini/polytini.wasm'; await init(wasm);`. JSR doesn't ship the `.wasm` file, so use the npm package for `/wasm` on Workers. The default import needs nothing special on Workers.
@@ -150,6 +152,15 @@ export interface Options {
    * encode treats missing or non-finite coordinates as 0.
    */
   strict?: boolean;
+  /**
+   * With `strict: false`, called with each problem decoding skips over, as
+   * the PolylineError strict mode would throw for it (not thrown): every
+   * invalid character, every value past 2^53 (once, where it passes), and a
+   * cut-off end. The first one is exactly what strict mode throws. Decoding
+   * goes on after it returns, and an error thrown from it stops decoding.
+   * Strict mode and encode never call it.
+   */
+  onIssue?(issue: PolylineError): void;
   /** Values per point, 1 to 16. Default 2. The third can be elevation, like GraphHopper's. */
   dimensions?: number;
   /** Factor for the third and later values. Defaults to the main factor. */
@@ -289,7 +300,11 @@ export interface ManyLines {
   starts: Uint32Array;
 }
 
-/** Decodes many lines in one WASM call. Strict mode throws on the first bad line. */
+/**
+ * Decodes many lines in one WASM call. Strict mode throws on the first bad
+ * line. With `strict: false`, `onIssue` gets each line's issues in order,
+ * with the index in that line.
+ */
 export function decodeMany(lines: readonly string[], options?: P.OptionsArg): ManyLines;
 
 /** Encodes many lines in one WASM call: arrays of points, or the { coords, starts } shape decodeMany returns. */
@@ -650,8 +665,25 @@ export class PolylineError extends Error {
  */
 export function encode(input: EncodeInput | Points, options?: EncodeOptions): string;
 
+/** Options for decode. */
+export interface DecodeOptions {
+  /**
+   * Throw a PolylineError on malformed data. Default true. With false,
+   * decode skips invalid characters and drops an incomplete last point, like
+   * the Google-format decoders. A bad header always throws.
+   */
+  strict?: boolean;
+  /**
+   * With `strict: false`, called with each problem decoding skips over, as
+   * the PolylineError strict mode would throw for it (not thrown). The first
+   * one is exactly what strict mode throws. Decoding goes on after it
+   * returns; an error thrown from it stops decoding.
+   */
+  onIssue?(issue: PolylineError): void;
+}
+
 /** Decodes a line, with its header. The same result shape as @here/flexpolyline. */
-export function decode(str: string): DecodedResult;
+export function decode(str: string, options?: DecodeOptions): DecodedResult;
 
 /** Reads only the header. */
 export function header(str: string): Header;
@@ -735,8 +767,9 @@ export type PointsChunk = ArrayLike<number> | LatLngLike | ArrayLike<ArrayLike<n
  * Errors are exactly those of `decode` on the whole string: an invalid
  * character throws from the `write` that reads it, with the index in the
  * whole input, and a cut-off string throws `'truncated'` from `end`. After
- * an error, every call throws it again. After `end`, the decoder starts a
- * new polyline.
+ * an error, every call throws it again. With `strict: false`, `onIssue`
+ * gets the issues decode would report, with indexes in the whole input.
+ * After `end`, the decoder starts a new polyline.
  */
 export class PolylineDecoder<O extends StreamOptions | number = TupleOptions> {
   /** Reads the options, the same ones decode takes; throws PolylineError `'option'` on a bad one. */
@@ -797,6 +830,11 @@ export interface LinesOptions extends StreamOptions {
    * `line`. `'skip'` leaves the line out and passes the error to `onError`.
    */
   errors?: 'throw' | 'skip';
+  /**
+   * With `strict: false`, as for decode, with the index in that line and
+   * the 1-based line number as `line` on each issue.
+   */
+  onIssue?(issue: PolylineError & { line: number }): void;
   /** Called with each skipped line's error and its line number, with `errors: 'skip'`. */
   onError?: (error: Error & { line: number }, line: number) => void;
 }
@@ -848,6 +886,135 @@ export function decodeLines(chunks: Source<Chunk> | Chunk, options?: LinesOption
 
 /** Yields one line of text per array of points (or object, with `field`), like EncodeLinesStream. */
 export function encodeLines(items: Source<any>, options?: LinesOptions | number): AsyncGenerator<string, void, undefined>;
+```
+
+### `@duoquote/polytini/detect`
+
+Works out how a polyline string was encoded: Google format at which
+precision, latitude or longitude first, two or three values per point,
+or HERE's Flexible Polyline. The string doesn't say, so every reading is
+scored on what real geometry looks like, and you get them ranked.
+
+```js
+import { detect, decodeAuto } from '@duoquote/polytini/detect';
+
+detect(str)[0];  // { format: 'google', precision: 6, order: 'latlng', dimensions: 2, confidence: 0.54, ... }
+decodeAuto(str); // the same, plus coordinates: [[lat, lng], ...]
+```
+
+A latitude and longitude swap can't be told apart when both readings
+land on land: pass `isLand` from `@duoquote/polytini/detect/land` to
+catch the ones that land at sea.
+
+`types/detect.d.ts`:
+
+```ts
+// Types for @duoquote/polytini/detect.
+
+import type { PolylineError } from './index.d.ts';
+
+export type { PolylineError } from './index.d.ts';
+
+/** Options for detect and decodeAuto. */
+export interface DetectOptions {
+  /** Google-format precisions to try. Default [5, 6, 7, 4, 8]. Each is an integer from 0 to 15. */
+  precisions?: number[];
+  /** Orders to try. Default both: 'latlng', the format's own, and 'lnglat', a string encoded longitude first. */
+  orders?: ('latlng' | 'lnglat')[];
+  /** Values per point to try. Default [2, 3]. Three is GraphHopper's and openrouteservice's elevation, in centimeters. */
+  dimensions?: (2 | 3)[];
+  /** Whether to try HERE's Flexible Polyline. Default true. */
+  flexible?: boolean;
+  /**
+   * Whether a point is on land. Readings with points at sea score lower,
+   * which catches most precision mix-ups and swaps that land in an ocean.
+   * `isLand` from `@duoquote/polytini/detect/land` is a 1 degree grid
+   * (2 KB gzipped); pass your own for a finer one.
+   */
+  isLand?(lat: number, lng: number): boolean;
+  /** How many points to score, spread over the line. Default 256. More is slower and rarely changes the answer. */
+  sample?: number;
+}
+
+/** One reading of the string, as detect returns it. */
+export interface Candidate {
+  /** 'google' for the Google encoded polyline format, 'flexible' for HERE's Flexible Polyline. */
+  format: 'google' | 'flexible';
+  /** Decimal places of latitude and longitude. For 'flexible', from the header. */
+  precision: number;
+  /**
+   * Which value comes first in the string. 'latlng' is the format's own
+   * order; 'lnglat' means the string was encoded longitude first. A preset's
+   * `order` is about the tuples it returns instead, not the string.
+   */
+  order: 'latlng' | 'lnglat';
+  /** Values per point: 2, or 3 with elevation. */
+  dimensions: 2 | 3;
+  /** The factor of the third value for 3D Google readings: 100, centimeters. */
+  zFactor?: number;
+  /** For 'flexible', the third dimension type from the header. */
+  thirdDim?: number;
+  /** For 'flexible', the third value's precision from the header. */
+  thirdDimPrecision?: number;
+  /** Names of the presets in `@duoquote/polytini/presets` with this precision and these dimensions. */
+  presets: string[];
+  /** Probability of this reading among all of them, 0 to 1. They add up to 1. */
+  confidence: number;
+  /** The log score the confidence comes from. Higher is more plausible. */
+  score: number;
+  /** Whether strict mode decodes the string this way without an error. */
+  valid: boolean;
+  /** The PolylineError strict mode throws for this reading, or null. Its index is how far strict decoding got. */
+  issue: PolylineError | null;
+  /** Why the reading lost points, like '100% of points out of range'. Empty for a reading with nothing against it. */
+  reasons: string[];
+  /** Options for decode and decodeFlat that give [lat, lng] points for this reading. Empty for 'flexible'. */
+  options: { precision?: number; order?: 'latlng' | 'lnglat'; dimensions?: number; zFactor?: number };
+}
+
+/** What decodeAuto returns: the best reading and its points. */
+export interface Decoded extends Candidate {
+  /** [lat, lng] or [lat, lng, z] points, decoded leniently with the best reading. */
+  coordinates: number[][];
+  /** Every issue lenient decoding reported, as onIssue gets them. Empty for a valid string. */
+  issues: PolylineError[];
+  /** Every reading, best first, as detect returns them. */
+  candidates: Candidate[];
+}
+
+/**
+ * Every reading of a polyline string, best first. Decodes the string once
+ * and scores up to `sample` points per reading. Throws PolylineError
+ * 'input' for a non-string and 'option' for a bad option, never for the
+ * string's content.
+ */
+export function detect(str: string, options?: DetectOptions): Candidate[];
+
+/** Detects the encoding, then decodes the string leniently with the best reading. */
+export function decodeAuto(str: string, options?: DetectOptions): Decoded;
+```
+
+### `@duoquote/polytini/detect/land`
+
+A coarse land mask for `detect`: a grid of 1 by 1 degree cells with land
+in them, from Natural Earth's 1:110m land (public domain). About 2 KB
+gzipped, so it's its own import. Coasts are generous: a cell with any
+land in it counts. Ice shelves count as sea.
+
+```js
+import { detect } from '@duoquote/polytini/detect';
+import { isLand } from '@duoquote/polytini/detect/land';
+
+detect(str, { isLand });
+```
+
+`types/detect-land.d.ts`:
+
+```ts
+// Types for @duoquote/polytini/detect/land.
+
+/** Whether the 1 by 1 degree cell around a point has land in it. False out of range. */
+export function isLand(lat: number, lng: number): boolean;
 ```
 
 ### `@duoquote/polytini/google`
@@ -1248,6 +1415,7 @@ Options are a number (the precision) or an object:
 - `factor`: multiply by this instead of `10 ** precision`.
 - `order`: `'latlng'` (default) or `'lnglat'`. The string itself always stores latitude first; this only changes the tuples you pass in and get back.
 - `strict`: default `true`. See below.
+- `onIssue`: with `strict: false`, a function that gets each error strict mode would have thrown. See [below](#reporting-what-lenient-mode-skipped).
 - `dimensions`: values per point, 1 to 16. Default 2. GraphHopper puts elevation third.
 - `zFactor`: the factor for the third and later values, like GraphHopper's elevation multiplier of 100.
 
@@ -1270,6 +1438,25 @@ decode('_p~iF~ps|U_ulLnnq', { strict: false }); // [[38.5, -120.2]]
 ```
 
 With `strict: false` it never throws on bad data: decode skips invalid characters and drops an incomplete last point, and encode treats missing or non-finite coordinates as 0.
+
+#### Reporting what lenient mode skipped
+
+`onIssue` tells you what `strict: false` skipped over, so you can decode a broken string and still say what was wrong with it, without decoding it twice:
+
+```js
+const issues = [];
+decode('_p~iF~ps|U_ul LnnqC_mqNvxq`', { strict: false, onIssue: (e) => issues.push(e) });
+// [[38.5, -120.2], [40.7, -120.95]]
+// issues: PolylineError 'char' at 13, then 'truncated' at 27
+```
+
+It gets a `PolylineError`, created and not thrown, for each problem: every invalid character, every value past 2^53 (once, at the character where it passes), and a string that ends inside a value or a point (once, at the end). The first one is exactly the error strict mode throws for that input: the same code, index and message. Later ones have their index in the input as it is, not in what's left after skipping. Usually there's just one.
+
+Decoding goes on after `onIssue` returns, and the output is the same as `strict: false` without it. To stop at the first problem, throw from it; decode then throws your error. With `strict: true` it's never called, and encode doesn't call it.
+
+Every decoder that takes `strict` takes it: `decode`, `decodeFlat`, `decodeLatLng`, `toGeoJSON` and the presets on every entry, `/wasm` (`decodeMany` reports each line's issues with the index in that line), the integrations that decode, `/stream` (the index is in the whole input, wherever the chunks were cut, and the line decoders add the 1-based `line`) and `/flexible`, which now takes `{ strict: false, onIssue }` too. Its header is always strict, because nothing after it can be read without it. `/lite` has no lenient mode, so it has no `onIssue` either.
+
+It costs nothing when you don't use it: only the slow decoder that already handles bad input reads it, so decoding valid input runs the same code as before. In paired runs against 0.1.7 on Node 24, Bun, Deno and Chrome the difference stayed inside the noise of 0.1.7 against itself ([CHANGELOG.md](https://github.com/Duoquote/polytini/blob/main/CHANGELOG.md)). `import { decode }` grew by 50 bytes gzipped.
 
 I made strict the default because it's cheap: on 10-point lines the checks measured 0 to 4%, and nothing I could separate from the noise on longer ones. The decoder ORs every character code into one integer and checks it once at the end, and the encoder's range check also catches NaN. Most other libraries silently return a wrong last point for a truncated string; see `npm run behavior` in the benchmark repo.
 
@@ -1413,6 +1600,112 @@ Most of the first row is the `throw` itself. In `encode`, the check for NaN, Inf
 - `decode` doesn't check that it got a string: `decode(123)` returns `[]`.
 
 Without a bundler, `dist/polytini-lite.iife.js` sets the same global `polytini`, with just `decode` and `encode`.
+### Detecting the encoding
+
+A Google-format string doesn't say which precision it was written at, which coordinate comes first or how many values a point has. `@duoquote/polytini/detect` works it out from the numbers:
+
+```js
+import { detect, decodeAuto } from '@duoquote/polytini/detect';
+
+// OSRM's polyline6 route through Berlin, from test/fixtures/presets.
+detect(geometry)[0];
+// { format: 'google', precision: 6, order: 'latlng', dimensions: 2,
+//   presets: ['osrm6', 'valhalla', 'stadia', 'mapbox6'], confidence: 0.54, valid: true,
+//   issue: null, reasons: [], options: { precision: 6, order: 'latlng', dimensions: 2 }, ... }
+
+const { coordinates, precision, issues } = decodeAuto(geometry); // coordinates: [[lat, lng], ...]
+```
+
+The runner-up there is the same precision read longitude first, at 0.25: swapped, Berlin is at 13.4 N, 52.5 E, a plausible place too. That one sits in the Gulf of Aden, so with the land mask below the first reading gets 0.98.
+
+`detect(str, options?)` returns every reading it tried, best first. It tries precision 5, 6, 7, 4 and 8, latitude first and longitude first, two values per point and three (elevation in centimeters, the way GraphHopper and openrouteservice write it), and HERE's Flexible Polyline when the string starts with a valid header. That's 20 Google readings, plus Flexible. Each one has:
+
+- `format`, `precision`, `order`, `dimensions`, and `zFactor` (100) for three values per point. For Flexible they come from the header, with `thirdDim` and `thirdDimPrecision`.
+- `confidence`: the reading's probability among all of them, from 0 to 1. They add up to 1.
+- `valid` and `issue`: whether strict mode decodes the string this way, and if not, the `PolylineError` it throws. The issue's index is how far strict decoding got.
+- `reasons`: what counted against it, like `'100% of points out of range'` or `'cut off with 3 values per point'`.
+- `presets`: the presets with that precision and number of values, like `['osrm6', 'valhalla', 'stadia', 'mapbox6']`. A preset's `order` is about the tuples it gives back, not the string, so it says nothing about `order` here.
+- `options`: pass them to `decode` or `decodeFlat` to get `[lat, lng]` points for this reading, whichever order the string has.
+
+`decodeAuto(str, options?)` runs `detect`, decodes the string leniently with the best reading, and returns that reading with `coordinates`, the `issues` that `onIssue` reported (empty for a valid string) and all the `candidates`.
+
+Options, all optional: `precisions`, `orders` and `dimensions` (arrays of what to try), `flexible: false` to skip Flexible, `isLand` (below) and `sample`.
+
+#### How it scores
+
+Each reading gets a score for how much its points look like real geometry, and the scores become probabilities with a softmax:
+
+- Every point in range. A precision 6 string read at 5 gives latitudes ten times too big, usually past 90, and so does a longitude read as a latitude.
+- The typical distance between points: tens to hundreds of meters scores best. It's broad on purpose, because 1 Hz walking tracks (about 1 m) and simplified overview lines (Mapbox's test response has 3.5 km steps, Google's example 250 km) are both real. A line with only a few steps counts for less here.
+- No jumps 10,000 times longer than the typical step.
+- Each step going on roughly in the direction of the last one. On the 1000 real-world lines the average cosine of the turns was 0.85, and under 0.54 for 1 in 100. A wrong number of values per point mixes latitude, longitude and elevation deltas, and the directions come out random: about 0.
+- Elevation between -500 and 9000 m, for three values per point.
+- Valid in strict mode: a reading the string is cut off under, while another isn't, loses points. Characters outside the format count against every Google reading, and digits or `-` count for Flexible.
+- A prior: precision 5 is the most common, then 6, then 7, and latitude first is the format's own order.
+- With `isLand`, points at sea.
+
+The string is decoded once, with the core's `decodeFlat` at factor 1. That gives the integers every Google reading shares: a precision only divides them, an order swaps two, and three values per point regroups them. Scoring then looks at up to `sample` points (default 256) spread over the line, so a long line costs one fast decode and a fixed amount of work. On the 10,000-point benchmark track `detect` took 1.1 ms on Node 25 (where `decode` took 0.12 ms), 1.4 ms on Node 24, 0.65 ms on Bun and 1.0 ms on Deno. On the real-world lines it was about 0.3 ms per line, and at 10 points 0.02 to 0.08 ms. `decodeAuto` adds one `decode`.
+
+#### Accuracy
+
+`node scripts/detect-accuracy.js` (and `--land` for the mask below) prints these tables. "Right" means the best reading has the precision, order and number of values the string was written with.
+
+| Input | Lines | Right | With `isLand` |
+|---|--:|--:|--:|
+| Real-world lines, precision 5 | 1000 | 100.0% | 100.0% |
+| The same, re-encoded at precision 6 | 1000 | 99.9% | 99.9% |
+| The same, re-encoded at precision 7 | 1000 | 99.9% | 99.9% |
+| The same, longitude first | 1000 | 0.0% | 0.0% |
+| Test vectors, decode cases with a known precision | 113 | 71.7% | 68.1% |
+| PostGIS fixture: zeros, ties, bounds, one point | 116 | 44.8% | 39.7% |
+| Generated tracks in 12 places, precision 5 | 600 | 100.0% | 91.7% |
+| The same, precision 6 | 600 | 100.0% | 91.7% |
+| The same, longitude first | 600 | 18.5% | 49.0% |
+| GraphHopper's test strings with elevation | 2 | 100.0% | 100.0% |
+| Generated tracks with elevation | 240 | 100.0% | 91.7% |
+
+The real-world lines are the benchmark's 1000 routes, all in Turkey. The generated tracks are polyline-benchmark's GPS-like tracks (1 Hz, walking to highway speed, with stops), made even in meters: 50 tracks of 200 points around each place in the table below. The vectors and the PostGIS cases are edge cases by design: one or two points, zeros, the ends of the range. Many of them are the same line at more than one precision, so no reading gets all of them right.
+
+Longitude first, per place:
+
+| Place | Without | With `isLand` |
+|---|--:|--:|
+| Istanbul | 0% | 0% |
+| Sao Paulo | 0% | 100% |
+| Seattle | 34% | 100% |
+| Sydney | 44% | 44% |
+| Berlin | 0% | 100% |
+| Nairobi | 0% | 100% |
+| Singapore | 66% | 66% |
+| Quito | 0% | 0% |
+| Suva, Fiji (by the antimeridian) | 62% | 62% |
+| Chukotka (by the antimeridian) | 16% | 16% |
+| Svalbard (78 N) | 0% | 0% |
+| McMurdo (78 S) | 0% | 0% |
+
+#### Latitude and longitude swaps
+
+A swapped string can only be told apart when the swapped reading is impossible or implausible, and often it's neither. When the longitude is past 90, the latitude-first reading is out of range, but the same reading at precision 6 usually isn't, and then the precision prior and the step lengths decide. That's close to a coin toss (Seattle, Sydney, Singapore). When both readings land on land, nothing in the string tells them apart: Istanbul's routes read swapped land in Saudi Arabia, which is why the real-world lines score 0% longitude first, with or without a mask. I tried right angles at turns too, which a swapped reading stretches out of shape away from the equator. It picked the right order for 75% of the real-world lines, but weighting it enough to matter cost more correct readings of normal strings than it fixed, so it's not in. If you know your data, pass `orders: ['latlng']`.
+
+`@duoquote/polytini/detect/land` has `isLand(lat, lng)`, a 1 by 1 degree grid from Natural Earth's 1:110m land (public domain). Pass it as `detect(str, { isLand })`, or pass your own function for a finer mask. It catches swaps and precision mix-ups that land at sea: Sao Paulo, Berlin and Nairobi swapped go from 0% to 100%, Seattle from 34%. It costs too: a line the mask counts as sea loses to any reading that lands on land. That's what happens to McMurdo, on the Ross Ice Shelf, whose tracks drop to 0% at every precision, and it's the 91.7% rows. Coasts are generous (a cell counts if it has any land in it), but ice shelves and small islands missing from the 1:110m data count as sea.
+
+So the mask isn't in `/detect` itself, and you pick it:
+
+| Mask | Gzipped | Longitude first, generated tracks |
+|---|--:|--:|
+| none | 0 B | 18.5% |
+| 3 degrees | 689 B | 40.7% |
+| 2 degrees | 993 B | 40.7% |
+| 1 degree (`/detect/land`) | 2,067 B | 49.0% |
+
+`/detect` is 4,048 bytes gzipped: the core's decoder, `/flexible`'s decoder, the presets and the scoring. No other entry includes it. `scripts/landmask.js` builds the mask, with `--cell` for the other sizes.
+
+#### Limits
+
+- One polyline per call. Quotes or a trailing newline make every Google reading invalid, so trim the string first.
+- A line of one or two points has little to go on beyond the range, so the prior decides most of those.
+- Three values per point with an elevation that hardly changes (about 10 cm per point or less) can read as a valid two-value line with small wiggles. In the tests, with a steady climb of 10 cm per point, the two-value reading won for 1 track in 5.
+- It doesn't try other `zFactor`s for the third value, `factor`s that aren't a power of ten, or more than three values per point.
 
 ## Streaming
 
@@ -1434,7 +1727,7 @@ import {
 } from '@duoquote/polytini/stream';
 ```
 
-They take the same options as `decode` and `encode` (`precision`, `factor`, `order`, `strict`, `dimensions`, `zFactor`, and the presets), plus `flat`.
+They take the same options as `decode` and `encode` (`precision`, `factor`, `order`, `strict`, `dimensions`, `zFactor`, `onIssue`, and the presets), plus `flat`.
 
 ### One long polyline in chunks
 
@@ -1466,7 +1759,7 @@ Strict mode works the way it does in `decode`:
 - Points from earlier chunks have already been returned by then. To use all of them or none, collect them and use them after `end()`.
 - After an error, every call throws it again. After `end()`, the decoder starts on a new polyline.
 
-With `strict: false` it never throws on bad data and gives what lenient `decode` gives: invalid characters are skipped and an incomplete last point is dropped.
+With `strict: false` it never throws on bad data and gives what lenient `decode` gives: invalid characters are skipped and an incomplete last point is dropped. `onIssue` gets the same issues `decode` reports for the whole string, with the index in the whole input, from the `write` that reads each one (the cut-off end from `end`). See [api.md](https://github.com/Duoquote/polytini/blob/main/docs/api.md#reporting-what-lenient-mode-skipped).
 
 Polylines don't contain whitespace, so a file that ends with a newline fails in strict mode, like `decode` does on it. For text with one polyline per line, use `DecodeLinesStream`.
 
@@ -1498,7 +1791,7 @@ for await (const route of lines) show(route.id, route.shape);
 
 `DecodeLinesStream` reads text or bytes with one polyline per line (`\n` or `\r\n`) and gives one result per line: its points, or with `field` the line's JSON object with that field decoded. Blank lines are skipped, and whitespace around a polyline is ignored. A line can be split between chunks anywhere.
 
-A bad line errors the stream by default, with the `PolylineError` (or `SyntaxError` for bad JSON) and the 1-based line number as `err.line`; `err.index` is the position in the line. With `errors: 'skip'` the line is left out and the error goes to `onError(err, line)`.
+A bad line errors the stream by default, with the `PolylineError` (or `SyntaxError` for bad JSON) and the 1-based line number as `err.line`; `err.index` is the position in the line. With `errors: 'skip'` the line is left out and the error goes to `onError(err, line)`. With `strict: false`, `onIssue` gets each line's issues with the index in the line and the line number as `line`.
 
 `EncodeLinesStream` goes the other way: one array of points (or one object, with `field`) per chunk in, one line of text out, with a `\n`.
 
@@ -1579,7 +1872,7 @@ with `--exe` for the other runtimes. On the 1000 real-world lines, one `Polyline
 
 ### Size
 
-Gzipped with `node scripts/size.js`: 3,624 bytes for the whole entry, 1,717 for `PolylineDecoder` alone. The CLI, which uses it, is 6,918.
+Gzipped with `node scripts/size.js`: 3,721 bytes for the whole entry, 1,782 for `PolylineDecoder` alone. The CLI, which uses it, is 6,987.
 
 ### How it's tested
 
@@ -1701,7 +1994,7 @@ const str = encode({ polyline: [[50.10228, 8.69821, 112.5], [50.10201, 8.69567, 
 const { precision, thirdDim, polyline } = decode(str);
 ```
 
-The same arguments and results as `@here/flexpolyline`, so it's a drop-in. It matches every line of HERE's official test data, including precision 11 and up, where `@here/flexpolyline` itself doesn't.
+The same arguments and results as `@here/flexpolyline`, so it's a drop-in. Unlike it, `decode` also takes `{ strict: false, onIssue }`: it then skips invalid characters and drops a cut-off last point, like the Google-format decoders, and tells `onIssue` about each. A bad header always throws. It matches every line of HERE's official test data, including precision 11 and up, where `@here/flexpolyline` itself doesn't.
 
 ## CLI
 
@@ -1784,7 +2077,7 @@ Instead of `--file`, stdin works too: `< routes.txt` or `cat routes.txt |` in ba
 Installed in a project, the command is `polytini`:
 
 ```
-polytini 0.1.8: encode and decode Google encoded polylines
+polytini 0.1.9: encode and decode Google encoded polylines
 
 Usage:
   polytini encode [lat,lng ...] [options]

@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const node = ['node', 'leaflet-auto'];
-const names = ['node', 'web', 'browser', 'wasm', 'lite', 'turf', 'leaflet', 'leaflet-auto', 'presets', 'flexible', 'stream', 'google', 'maplibre', 'mapbox', 'deckgl'];
+const names = ['node', 'web', 'browser', 'wasm', 'lite', 'turf', 'leaflet', 'leaflet-auto', 'presets', 'flexible', 'stream', 'detect', 'detect-land', 'google', 'maplibre', 'mapbox', 'deckgl'];
 
 rmSync(root + 'dist', { recursive: true, force: true });
 for (const name of names) {

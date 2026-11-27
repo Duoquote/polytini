@@ -53,3 +53,13 @@ new PolylineEncoder({ order: 'xy' });
 new PolylineEncoder({ flat: true }).write([[1, 2]]);
 
 export { pts, more, bytes, flat, preset, s, sf, streams };
+
+// onIssue, on the main entry, the stream decoders and /flexible.
+import { decode as mainDecode, decodeFlat as mainFlat, PolylineError as MainError } from '@duoquote/polytini';
+import { decode as flexDecode } from '@duoquote/polytini/flexible';
+const seen: MainError[] = [];
+mainDecode('_p~iF~ps|U!', { strict: false, onIssue: (e) => seen.push(e) });
+mainFlat('_p~iF~ps|U!', { ...osrm6, strict: false, onIssue(e) { const c: string = e.code; const i: number | undefined = e.index; void c, i; } });
+new PolylineDecoder({ strict: false, onIssue: (e) => seen.push(e) });
+new DecodeLinesStream({ strict: false, onIssue: (e) => { const line: number = e.line; void line; } });
+flexDecode('BFoz5xJ67i1B1B7PzIhaxL7Y', { strict: false, onIssue: (e) => void e.message });

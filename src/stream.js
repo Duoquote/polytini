@@ -10,7 +10,7 @@
 // between chunks, other dimensions, bad characters, huge values).
 /* @ts-self-types="../types/stream.d.ts" */
 import { opts, st, chars } from './core.js';
-import { PolylineError, fail } from './error.js';
+import { PolylineError, fail, issue } from './error.js';
 import { Lines, toText, flushText } from './lines.js';
 
 export { PolylineError };
@@ -39,6 +39,7 @@ const setup = (o, options) => {
   o.d = st.dims;
   o.sw = st.swap && st.dims > 1;
   o.strict = st.strict;
+  o.on = st.on;
   o.flat = !!(options && options.flat);
   o.e = null;
 };
@@ -71,7 +72,7 @@ export class PolylineDecoder {
   end() {
     return guard(this, () => {
       const out = this.run(flushText(this));
-      if (this.strict && (this.m > 1 || this.a)) fail('truncated', 'Truncated', this.n);
+      if (this.m > 1 || this.a) issue(this.strict, this.on, 'truncated', 'Truncated', this.n);
       this.reset();
       return out;
     });
@@ -160,17 +161,19 @@ export class PolylineDecoder {
   // slowDecode one character at a time, with its state kept between chunks.
   // With `once`, it stops after the first point it completes.
   slow(s, i, len, once) {
-    const d = this.d, sum = this.s, strict = this.strict, f = this.f, z = this.z, sw = this.sw, flat = this.flat, out = this.o;
-    let v = this.v, m = this.m, a = this.a, k = this.k, c;
+    const d = this.d, sum = this.s, strict = this.strict, on = this.on, f = this.f, z = this.z, sw = this.sw, flat = this.flat, out = this.o;
+    let v = this.v, m = this.m, a = this.a, k = this.k, c, w;
     for (; i < len; i++) {
       c = s.charCodeAt(i) - 63;
       if (c < 0 || c > 63) {
-        if (strict) fail('char', 'Invalid character', this.n + i);
+        issue(strict, on, 'char', 'Invalid character', this.n + i);
         continue;
       }
+      w = v;
       v += (c & 31) * m;
       m *= 32;
-      if (v > 2 ** 53 && strict) fail('overflow', 'Value too large', this.n + i);
+      // Where the value first passes 2^53, like the core.
+      if (v > 2 ** 53 && w <= 2 ** 53) issue(strict, on, 'overflow', 'Value too large', this.n + i);
       if (c < 32) {
         sum[a] += v % 2 ? -(v + 1) / 2 : v / 2;
         v = 0;
@@ -336,7 +339,10 @@ export class PolylineEncoder {
 // PolylineDecoder or PolylineEncoder, reused while it doesn't throw, so
 // this entry doesn't carry a second copy of the codec.
 const lineOptions = (o, Codec) => {
-  const c = { o, field: o && o.field, skip: false, cb: o && o.onError, no: 0, x: new Codec(o) };
+  const c = { o, field: o && o.field, skip: false, cb: o && o.onError, no: 0 }, on = o && o.onIssue;
+  // Issues get the line number too, like errors.
+  if (on) o = { ...o, onIssue: (e) => on(((e.line = c.no), e)) };
+  c.x = new Codec(o);
   const e = o && o.errors;
   if (e === 'skip') c.skip = true;
   else if (e != null && e !== 'throw') fail('option', 'Invalid errors');
