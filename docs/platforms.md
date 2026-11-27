@@ -119,7 +119,7 @@ The best-at-what table is in the [README](../README.md#best-at-what). Every tabl
 
 ## What changed after 0.1.3
 
-The benchmark repo's numbers move about 30% between rounds, so these come from `bench/ab.js` instead: the old and the new code on the same inputs, in alternating fresh processes pinned to 4 cores, 10 or 12 rounds, with a 95% confidence interval. A against itself gave about ±2 to 3% that way. Time per call, new divided by old, so 0.70 is 30% faster. "same" means the interval included 1.00. Every call passes the precision, like the benchmark does.
+The benchmark repo's numbers moved about 30% between rounds when I measured these, so they come from `bench/ab.js` instead: the old and the new code on the same inputs, in alternating fresh processes pinned to 4 cores, 10 or 12 rounds, with a 95% confidence interval. A against itself gave about ±2 to 3% that way. Time per call, new divided by old, so 0.70 is 30% faster. "same" means the interval included 1.00. Every call passes the precision, like the benchmark does.
 
 | | Node 22 | Node 24 | Node 26 | Bun 1.4.3 | Deno 2.5 | Chrome 157 |
 |---|--:|--:|--:|--:|--:|--:|

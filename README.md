@@ -52,33 +52,42 @@ decode('_p~iF~ps|U_ulLnnqC_mqNvxq`@');                         // [[38.5, -120.2
 decode(osrmGeometry, { precision: 6, order: 'lnglat' });        // OSRM polyline6, as [lng, lat]
 ```
 
+## Speed
+
+From the [benchmark](https://github.com/Duoquote/polyline-benchmark)'s 27 November 2026 run with 0.1.4, on Bun, Node 22 to 26, Deno and Chrome. Encoding is about twice as fast as the next library on every runtime. Decoding is ahead on long and real-world lines on most runtimes, behind at 10 points everywhere except Bun (by 11 to 21%), and behind in Chrome at most lengths. A cell moved by 5 to 7% between rounds, and the hatched cells are inside that.
+
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Duoquote/polyline-benchmark/main/docs/charts/speed-bun-decode-dark.svg">
-  <img alt="Bun: decode speed of every polyline library relative to @mapbox/polyline on real-world lines; polytini is highlighted" src="https://raw.githubusercontent.com/Duoquote/polyline-benchmark/main/docs/charts/speed-bun-decode-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Duoquote/polyline-benchmark/main/docs/charts/overview-dark.svg">
+  <img alt="Heatmap of polytini against the fastest other polyline library: a row per runtime (Bun, Node 22 to 26, Deno, Chrome) and a column per case (decode and encode at 10 to 100,000 points and on real-world lines). Each cell gives the ratio and names the fastest other library; hatched cells are within the noise." src="https://raw.githubusercontent.com/Duoquote/polyline-benchmark/main/docs/charts/overview-light.svg">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Duoquote/polyline-benchmark/main/docs/charts/grouped-decode-dark.svg">
+  <img alt="Decode speed of polytini and four other libraries relative to @mapbox/polyline, a panel per runtime and a group of bars per line length, on a log scale." src="https://raw.githubusercontent.com/Duoquote/polyline-benchmark/main/docs/charts/grouped-decode-light.svg">
 </picture>
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Duoquote/polyline-benchmark/main/docs/charts/speed-bun-encode-dark.svg">
-  <img alt="Bun: encode speed of every polyline library relative to @mapbox/polyline on real-world lines; polytini is highlighted" src="https://raw.githubusercontent.com/Duoquote/polyline-benchmark/main/docs/charts/speed-bun-encode-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Duoquote/polyline-benchmark/main/docs/charts/grouped-encode-dark.svg">
+  <img alt="Encode speed of polytini and four other libraries relative to @mapbox/polyline, a panel per runtime and a group of bars per line length, on a log scale." src="https://raw.githubusercontent.com/Duoquote/polyline-benchmark/main/docs/charts/grouped-encode-light.svg">
 </picture>
 
 ## Best at what
 
 <!-- best -->
-From the [benchmark](https://github.com/Duoquote/polyline-benchmark)'s 27 November 2026 run, across Bun, Node 22 to 26, Deno and Chrome. Leads under 1.3x are marked, because cells moved about 30% between rounds.
+From the same run, across every runtime (geometric mean over runtimes and line lengths). A lead smaller than the noise, about 6%, is marked.
 
 | Situation | Best | Runner-up | Margin |
 |---|---|---|--:|
-| Decode short lines (10 and 100 points) | @googlemaps/polyline-codec | @mapbox/polyline | 1.05x faster, within the noise |
-| Decode long lines (10,000 and 100,000 points) | **@duoquote/polytini** | @googlemaps/polyline-codec | 1.14x faster, within the noise |
-| Decode real-world lines (median 82 points) | **@duoquote/polytini** | @googlemaps/polyline-codec | 1.22x faster, within the noise |
-| Encode, any length | **@duoquote/polytini** | google-polyline | 2.05x faster |
-| Decode to typed arrays | **@duoquote/polytini (wasm, Float64Array)** | @duoquote/polytini (Float64Array) | 1.08x faster, within the noise |
-| Encode from typed arrays | **@duoquote/polytini (wasm, Float64Array)** | @duoquote/polytini (Float64Array) | 1.05x faster, within the noise |
-| Decode 1000 lines in one call | **@duoquote/polytini (wasm decodeMany/encodeMany)** | @duoquote/polytini (wasm, Float64Array) | 1.61x faster |
-| Least memory per decode (10,000 points, [lat, lng] arrays) | **@duoquote/polytini (765.4 KB)** | @googlemaps/polyline-codec (766.2 KB) | 0.1% less |
+| Decode short lines (10 and 100 points) | **@duoquote/polytini** | @placemarkio/polyline | 1.01x faster, within the noise |
+| Decode long lines (10,000 and 100,000 points) | **@duoquote/polytini** | @googlemaps/polyline-codec | 1.20x faster |
+| Decode real-world lines (median 82 points) | **@duoquote/polytini** | @googlemaps/polyline-codec | 1.27x faster |
+| Encode, any length | **@duoquote/polytini** | google-polyline | 2.01x faster |
+| Decode to typed arrays | **@duoquote/polytini (Float64Array)** | @duoquote/polytini (wasm, Float64Array) | 1.00x faster, within the noise |
+| Encode from typed arrays | **@duoquote/polytini (wasm, Float64Array)** | @duoquote/polytini (Float64Array) | 1.03x faster, within the noise |
+| Decode 1000 lines in one call | **@duoquote/polytini (wasm decodeMany/encodeMany)** | @duoquote/polytini (wasm, Float64Array) | 1.57x faster |
+| Least memory per decode (10,000 points, [lat, lng] arrays) | **@duoquote/polytini (764.8 KB)** | @googlemaps/polyline-codec (766.2 KB) | 0.2% less |
 | Smallest bundle (gzipped) | google-polyline (551 B) | @googlemaps/polyline-codec (568 B) | 17 B smaller |
-| Strict validation (throws on bad input) | **@duoquote/polytini** | @lp-labs/polyline-codec | 15x faster |
-| HERE Flexible Polyline (encode and decode) | **@duoquote/polytini (flexible)** | @here/flexpolyline | 24x faster |
+| Strict validation (throws on bad input) | **@duoquote/polytini** | @lp-labs/polyline-codec | 17x faster |
+| HERE Flexible Polyline (encode and decode) | **@duoquote/polytini (flexible)** | @here/flexpolyline | 25x faster |
 <!-- /best -->
 
 ## API

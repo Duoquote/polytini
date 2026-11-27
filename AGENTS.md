@@ -73,7 +73,7 @@ Don't change these without the maintainer asking for it:
 
 ## Speed claims
 
-The tables in polyline-benchmark move about 30% between rounds, so they're good for comparing libraries and useless for a 5% change in one loop. For a change to polytini's own code:
+A cell in polyline-benchmark's tables moves 5 to 7% between rounds in its pinned run (`npm run bench:clean`) and about 30% on a busy machine, so the tables are good for comparing libraries and not for a 5% change in one loop. For a change to polytini's own code:
 
 - Compare before and after in the same session, on the same machine, paired: alternate A and B runs in separate processes, over several rounds, and report the ratio with its spread or a confidence interval.
 - Run A against itself first. That's the noise floor; a difference inside it isn't a result.
