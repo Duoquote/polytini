@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.5
+
+Packaging for the tools that couldn't use 0.1.4, a faster `/wasm` on V8, and two fixes. Nothing was removed.
 
 Packaging: nothing removed, the CommonJS build stays. Checked with `test/tools/matrix.mjs` against the packed tarball; the table is in [docs/platforms.md](docs/platforms.md#module-formats-and-tools).
 
