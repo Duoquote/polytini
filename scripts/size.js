@@ -37,12 +37,14 @@ export const entries = [
   { name: 'turf', file: 'src/turf.js', platform: 'browser', budget: 2250 },
   { name: 'presets', file: 'src/presets.js', platform: 'browser', budget: 300 },
   { name: 'flexible', file: 'src/flexible.js', platform: 'browser', budget: 2120 },
+  { name: 'stream', file: 'src/stream.js', platform: 'browser', budget: 3780 },
+  { name: 'stream, PolylineDecoder only', code: "export { PolylineDecoder } from './src/stream.js'", platform: 'browser', budget: 1800 },
   { name: 'google', file: 'src/google.js', platform: 'browser', budget: 1990 },
   { name: 'openlayers', file: 'src/openlayers.js', platform: 'browser', budget: 1110 },
   { name: 'maplibre', file: 'src/maplibre.js', platform: 'browser', budget: 1600 },
   { name: 'mapbox', file: 'src/mapbox.js', platform: 'browser', budget: 1600 },
   { name: 'deckgl', file: 'src/deckgl.js', platform: 'browser', budget: 1990 },
-  { name: 'cli', file: 'src/cli.js', platform: 'node', budget: 3910 },
+  { name: 'cli', file: 'src/cli.js', platform: 'node', budget: 7140 },
 ];
 
 export async function measure(e) {

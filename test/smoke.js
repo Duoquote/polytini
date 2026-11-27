@@ -2,9 +2,12 @@
 // then runs ESM and CJS consumers, the CLI, TypeScript checks and a browser
 // bundle against the installed copy.
 //
-//   node test/smoke.js [npm pnpm yarn yarn-classic bun deno]   (default: all that are installed)
+//   node test/smoke.js [npm pnpm yarn yarn-node-modules yarn-classic bun deno]   (default: all that are installed)
 //
 // Not part of test/run.js: it needs the package managers and takes a minute.
+// Yarn runs through Corepack when it's installed, at the versions below, so
+// neither Yarn needs a global install; without Corepack, Yarn 4 comes from
+// npx and Yarn 1 from a global `yarn`.
 import { execSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, readdirSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -29,6 +32,12 @@ const run = (cmd, cwd, opts = {}) => {
   return r.stdout;
 };
 const has = (cmd) => spawnSync(cmd, ['--version'], { shell: true, encoding: 'utf8' }).status === 0;
+// Corepack asks before its first download of a version, which would hang here.
+process.env.COREPACK_ENABLE_DOWNLOAD_PROMPT = '0';
+const corepack = has('corepack');
+const YARN4 = '4.19.0', YARN1 = '1.22.22';
+const yarn4 = corepack ? `corepack yarn@${YARN4}` : `npx -y -p @yarnpkg/cli-dist@${YARN4} yarn`;
+const yarn1 = corepack ? `corepack yarn@${YARN1}` : 'yarn';
 
 // 1. Pack. prepack builds dist/.
 const work = mkdtempSync(join(tmpdir(), 'polytini-smoke-'));
@@ -43,8 +52,15 @@ import { toFeature } from '@duoquote/polytini/turf';
 import { osrm6 } from '@duoquote/polytini/presets';
 import { init, decode as wdecode } from '@duoquote/polytini/wasm';
 import * as flex from '@duoquote/polytini/flexible';
+import { PolylineDecoder, DecodeStream, PolylineError as StreamError } from '@duoquote/polytini/stream';
 const pts = [[38.5, -120.2], [40.7, -120.95], [43.252, -126.453]];
 const ok = (c, m) => { if (!c) throw new Error(m); };
+const sd = new PolylineDecoder();
+ok(sd.write(${JSON.stringify(s.slice(0, 9))}).length + sd.write(${JSON.stringify(s.slice(9))}).length === 3 && sd.end().length === 0, 'stream');
+let batches = 0;
+for await (const b of new Response(${JSON.stringify(s)}).body.pipeThrough(new DecodeStream())) batches += b.length;
+ok(batches === 3, 'DecodeStream');
+ok(StreamError === PolylineError, 'one PolylineError class');
 ok(encode(pts) === ${JSON.stringify(s)}, 'encode');
 ok(JSON.stringify(decode(${JSON.stringify(s)})) === JSON.stringify(pts), 'decode');
 ok(decodeFlat(${JSON.stringify(s)}).length === 6, 'decodeFlat');
@@ -61,7 +77,10 @@ const cjs = `
 const { encode, decode, PolylineError } = require('@duoquote/polytini');
 const { toFeature } = require('@duoquote/polytini/turf');
 const presets = require('@duoquote/polytini/presets');
+const { PolylineEncoder } = require('@duoquote/polytini/stream');
 const ok = (c, m) => { if (!c) throw new Error(m); };
+const se = new PolylineEncoder();
+ok(se.write([38.5, -120.2]) + se.write([[40.7, -120.95], [43.252, -126.453]]) + se.end() === ${JSON.stringify(s)}, 'stream');
 ok(encode([[38.5, -120.2]]) === '_p~iF~ps|U', 'encode');
 ok(decode(${JSON.stringify(s)}).length === 3, 'decode');
 ok(toFeature(${JSON.stringify(s)}).geometry.coordinates.length === 3, 'turf');
@@ -77,6 +96,11 @@ import { init, decodeFlat } from '@duoquote/polytini/wasm';
 import { install } from '@duoquote/polytini/leaflet';
 import * as flex from '@duoquote/polytini/flexible';
 import { decodePath, encodePath } from '@duoquote/polytini/google';
+import { PolylineDecoder, DecodeStream } from '@duoquote/polytini/stream';
+const streamed: Point[] = new PolylineDecoder().write('??');
+const flatStream: Float64Array = new PolylineDecoder({ flat: true }).write('??');
+const ds: TransformStream = new DecodeStream(6);
+export { streamed, flatStream, ds };
 const literals = decodePath('??', { LatLng: false });
 const back: string = encodePath(literals);
 const o: Options = { precision: 6, order: 'lnglat', strict: false };
@@ -140,6 +164,27 @@ function checks(name, dir, { bin, node = 'node', types = true, resolveFrom = dir
   return lines;
 }
 
+// A Yarn 4 project with the given linker and the tarball installed.
+function yarnProject(name, linker, extra = '') {
+  const dir = join(work, name);
+  project(dir);
+  writeFileSync(join(dir, '.yarnrc.yml'), `nodeLinker: ${linker}\nenableGlobalCache: false\n`);
+  writeFileSync(join(dir, 'yarn.lock'), '');
+  run(`${yarn4} add "@duoquote/polytini@file:${tarball}" ${extra}`, dir);
+  return dir;
+}
+
+// The bin the other ways Yarn 4 users run it: `yarn exec`, and `yarn dlx`
+// from the tarball, which installs it into a temporary project of its own.
+function yarnBins(dir) {
+  const want = 'kviyHviWkCbkBsg@guA';
+  const exec = run(`${yarn4} exec polytini encode 51.5007,-0.1246 51.5014,-0.1419 51.5079,-0.1281`, dir).trim();
+  if (exec != want) throw new Error(`yarn exec polytini: ${exec}`);
+  const dlx = run(`${yarn4} dlx -q -p "@duoquote/polytini@file:${tarball}" polytini decode "${want}"`, work).trim();
+  if (dlx != '[[51.5007,-0.1246],[51.5014,-0.1419],[51.5079,-0.1281]]') throw new Error(`yarn dlx: ${dlx}`);
+  return [`Yarn ${run(`${yarn4} --version`, dir).trim()}`, 'yarn exec polytini ok', 'yarn dlx from the tarball ok'];
+}
+
 const managers = {
   npm: () => {
     const dir = join(work, 'npm');
@@ -156,22 +201,28 @@ const managers = {
   },
   yarn: () => {
     // Yarn 4 (berry) with Plug'n'Play: no node_modules at all.
-    const dir = join(work, 'yarn');
-    project(dir);
-    const yarn = 'npx -y -p @yarnpkg/cli-dist@4 yarn';
-    writeFileSync(join(dir, '.yarnrc.yml'), 'nodeLinker: pnp\nenableGlobalCache: false\n');
-    writeFileSync(join(dir, 'yarn.lock'), '');
-    run(`${yarn} add "@duoquote/polytini@file:${tarball}"`, dir);
+    const dir = yarnProject('yarn', 'pnp');
     // Under PnP, node needs Yarn's loader: `yarn node` sets it up. TypeScript
     // can't read PnP without its patched build, so types are checked by the
     // other managers.
-    return checks('yarn', dir, { bin: `${yarn} polytini`, node: `${yarn} node`, types: false });
+    const lines = checks('yarn', dir, { bin: `${yarn4} polytini`, node: `${yarn4} node`, types: false });
+    return [...lines, ...yarnBins(dir)];
+  },
+  'yarn-node-modules': () => {
+    // Yarn 4 with a node_modules folder, the linker most projects moving from Yarn 1 pick.
+    const dir = yarnProject('yarn-node-modules', 'node-modules', peers);
+    return [...checks('yarn-node-modules', dir, { bin: `${yarn4} polytini` }), ...yarnBins(dir)];
   },
   'yarn-classic': () => {
     const dir = join(work, 'yarn-classic');
     project(dir);
-    run(`yarn add "file:${tarball}" ${peers} --no-lockfile`, dir);
-    return checks('yarn-classic', dir, { bin: 'yarn --silent polytini' });
+    const version = run(`${yarn1} --version`, dir).trim();
+    if (!version.startsWith('1.')) throw new Error(`expected Yarn 1, got ${version}`);
+    run(`${yarn1} add "file:${tarball}" ${peers} --no-lockfile`, dir);
+    const lines = checks('yarn-classic', dir, { bin: `${yarn1} --silent polytini` });
+    const out = run(`${yarn1} --silent run polytini encode 38.5,-120.2`, dir).trim();
+    if (out != '_p~iF~ps|U') throw new Error(`yarn run polytini: ${out}`);
+    return [`Yarn ${version}`, ...lines, 'yarn run polytini ok'];
   },
   bun: () => {
     const dir = join(work, 'bun');
@@ -204,7 +255,7 @@ const results = {};
 let failed = 0;
 for (const [name, fn] of Object.entries(managers)) {
   if (want.length && !want.includes(name)) continue;
-  const tool = name == 'yarn-classic' ? 'yarn' : name == 'yarn' ? 'npx' : name;
+  const tool = name.startsWith('yarn') ? (corepack ? 'corepack' : name == 'yarn-classic' ? 'yarn' : 'npx') : name;
   if (!has(tool)) {
     results[name] = ['skipped: not installed'];
     continue;

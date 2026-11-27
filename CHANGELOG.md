@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.1.7
+
+Streaming, and a CLI whose documented commands work the same in bash, PowerShell and cmd. Nothing else changed: no other entry got bigger or slower, and every output is the same.
+
+`@duoquote/polytini/stream`, a new entry, for input that arrives in pieces. Docs: [docs/streaming.md](docs/streaming.md).
+
+- One long polyline in chunks, like a fetch body or a file: `res.body.pipeThrough(new DecodeStream())` gives the points each chunk completes. `PolylineDecoder` does the same with `write(chunk)` and `end()`, without streams. Chunks can be strings or bytes and can end anywhere, even inside a value.
+- Points to a string as they come: `EncodeStream`, and `PolylineEncoder` with `write(points)` and `end()`.
+- One polyline per line, or NDJSON with a polyline field: `DecodeLinesStream` and `EncodeLinesStream`, with `errors: 'skip'` and `onError` for bad lines.
+- `decodeIterable`, `encodeIterable`, `decodeLines` and `encodeLines` for `for await` over async generators, Node Readables and ReadableStreams.
+- They take the same options as `decode` and `encode`, presets included, plus `flat` for `Float64Array` batches.
+- Wherever the input is cut, the result is what `decode` and `encode` give on the whole input: the same numbers, the same string, and the same `PolylineError` code, index and message. `test/stream.test.js` checks that by cutting random, broken and fixture inputs (the vectors, PostGIS and the real-world lines) at every position, as strings and as UTF-8 bytes, and at random chunk sizes, on Node, Bun, Deno, headless Chrome and workerd.
+- Speed, 1,000,000 points in 64 KB chunks against one call on the whole string, paired runs with `bench/ab.js`: decoding to tuples costs 0 to 8% on Node 22 to 25 and Deno and is 7 to 9% faster on Bun, both for string chunks and for byte chunks against `decode(await res.text())`. Flat output costs up to 19% (Node 22) and is 13 to 20% faster on Bun. Encoding costs up to 15%, except on Node 22, where it's almost three times as fast in pieces. In Chrome, tuples were 6% faster and flat output 12% slower. The tables are in [docs/streaming.md](docs/streaming.md#speed).
+- 3,624 bytes gzipped for the whole entry, 1,717 for `PolylineDecoder` alone.
+
+CLI:
+
+- `encode` takes points as arguments: `polytini encode 51.5007,-0.1246 51.5014,-0.1419`. No JSON quoting, and a negative number is a coordinate, not an option. In PowerShell an unquoted pair reaches the command as `51.5007 -0.1246` through the `pnpm`, `bunx` and `npx` shims, which works too.
+- `-` and `--file -` read stdin, and `decode` takes several polylines as arguments.
+- `--lines` reads one input per line and writes one output per line, so a file of any size goes through with constant memory: `polytini decode --lines --file routes.txt`. `--field <name>` decodes or encodes one field of each line's JSON object, and `--skip-errors` reports a bad line and goes on. Errors say which line.
+- stdin and `--file` are read in chunks and output is written as it's ready, so a polyline of a million points needs little memory too. The output is byte for byte what 0.1.4 printed for the same input.
+- In cmd, a polyline that ends in `\` reaches the command with a `"` instead, because Windows reads `\"` as a quote. The error now says to double that backslash.
+- The CLI is 6,918 bytes gzipped, up from 3,755 in 0.1.6: it carries the stream decoder and encoder. No library entry includes it.
+
+Docs:
+
+- The CLI examples in the README, docs/cli.md and llms.txt use polylines without `` ` ``, `\`, `|` or `^`, in double quotes, so they work in every shell as written. The old example, `` '_p~iF~ps|U_ulLnnqC_mqNvxq`@' ``, didn't work in cmd, where single quotes aren't quotes and `|` starts a pipe. I ran every documented command in cmd, PowerShell 5.1 and Git Bash with `pnpm dlx`, `bunx`, `deno run`, `yarn dlx` (Yarn 4.19) and `npx`. `yarn dlx` needs Yarn 2 or newer, so the docs point Yarn 1 users to `npx`. docs/cli.md says how to quote your own polylines in each shell.
+- `deno run` needs `-R` for `--file`, and the docs say so.
+
+Tests:
+
+- `test/smoke.js` installs the tarball with Yarn 4 using the node-modules linker as well as Plug'n'Play, and with Yarn 1, both through Corepack when it's there, and runs the bin through `yarn polytini`, `yarn exec`, `yarn run` and `yarn dlx`. Every package manager's consumers import `/stream` too.
+- `test/yarn-dlx.js` runs the CLI through `yarn dlx` from the packed tarball in every shell the machine has. CI runs it with Yarn 4 from Corepack on Linux (bash) and Windows (cmd, PowerShell and Git Bash).
+
 ## 0.1.6
 
 Smaller bundles for what people actually import, with the same output, the same errors and the same speed. Nothing was removed.

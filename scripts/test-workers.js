@@ -63,12 +63,14 @@ try {
   writeFileSync(join(dir, 'setup.js'), `
 import * as npmDefault from '@duoquote/polytini';
 import * as wasm from '@duoquote/polytini/wasm';
+import * as stream from '@duoquote/polytini/stream';
 import wasmModule from '@duoquote/polytini/polytini.wasm';
 import * as jsrDefault from ${rel(join(root, 'src/deno.js'))};
 import files from './files.json';
 wasm.initSync(wasmModule);
 globalThis.__polytiniTest = {
   files,
+  stream,
   entries: [
     { name: 'npm default', api: npmDefault },
     { name: 'jsr default (src/deno.js)', api: jsrDefault },

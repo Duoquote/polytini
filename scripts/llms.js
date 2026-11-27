@@ -3,7 +3,7 @@
 // - the top of llms.txt (everything before its first "## " section)
 // - every import path's module doc and type file (package.json exports,
 //   plus the JSR-only /cli), with the doc comments as written
-// - docs/api.md, docs/integrations.md and docs/cli.md, one heading level down
+// - docs/api.md, docs/streaming.md, docs/integrations.md and docs/cli.md, one heading level down
 //   and with relative links made absolute
 //   node scripts/llms.js           write llms-full.txt
 //   node scripts/llms.js --check   exit 1 if llms-full.txt is out of date, or
@@ -17,7 +17,7 @@ const pkg = JSON.parse(read('package.json'));
 const jsr = JSON.parse(read('jsr.json'));
 const blob = 'https://github.com/Duoquote/polytini/blob/main/';
 const raw = 'https://raw.githubusercontent.com/Duoquote/polytini/main/';
-const guides = ['docs/api.md', 'docs/integrations.md', 'docs/cli.md'];
+const guides = ['docs/api.md', 'docs/streaming.md', 'docs/integrations.md', 'docs/cli.md'];
 
 // The /** ... @module */ block of a type file, as Markdown.
 function moduleDoc(src) {
