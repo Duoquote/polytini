@@ -13,6 +13,8 @@ coverage/
 /presets/package.json
 /flexible/package.json
 /stream/package.json
+/detect/package.json
+/detect/land/package.json
 /google/package.json
 /maplibre/package.json
 /mapbox/package.json

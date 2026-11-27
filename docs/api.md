@@ -207,3 +207,109 @@ Most of the first row is the `throw` itself. In `encode`, the check for NaN, Inf
 - `decode` doesn't check that it got a string: `decode(123)` returns `[]`.
 
 Without a bundler, `dist/polytini-lite.iife.js` sets the same global `polytini`, with just `decode` and `encode`.
+## Detecting the encoding
+
+A Google-format string doesn't say which precision it was written at, which coordinate comes first or how many values a point has. `@duoquote/polytini/detect` works it out from the numbers:
+
+```js
+import { detect, decodeAuto } from '@duoquote/polytini/detect';
+
+// OSRM's polyline6 route through Berlin, from test/fixtures/presets.
+detect(geometry)[0];
+// { format: 'google', precision: 6, order: 'latlng', dimensions: 2,
+//   presets: ['osrm6', 'valhalla', 'stadia', 'mapbox6'], confidence: 0.54, valid: true,
+//   issue: null, reasons: [], options: { precision: 6, order: 'latlng', dimensions: 2 }, ... }
+
+const { coordinates, precision, issues } = decodeAuto(geometry); // coordinates: [[lat, lng], ...]
+```
+
+The runner-up there is the same precision read longitude first, at 0.25: swapped, Berlin is at 13.4 N, 52.5 E, a plausible place too. That one sits in the Gulf of Aden, so with the land mask below the first reading gets 0.98.
+
+`detect(str, options?)` returns every reading it tried, best first. It tries precision 5, 6, 7, 4 and 8, latitude first and longitude first, two values per point and three (elevation in centimeters, the way GraphHopper and openrouteservice write it), and HERE's Flexible Polyline when the string starts with a valid header. That's 20 Google readings, plus Flexible. Each one has:
+
+- `format`, `precision`, `order`, `dimensions`, and `zFactor` (100) for three values per point. For Flexible they come from the header, with `thirdDim` and `thirdDimPrecision`.
+- `confidence`: the reading's probability among all of them, from 0 to 1. They add up to 1.
+- `valid` and `issue`: whether strict mode decodes the string this way, and if not, the `PolylineError` it throws. The issue's index is how far strict decoding got.
+- `reasons`: what counted against it, like `'100% of points out of range'` or `'cut off with 3 values per point'`.
+- `presets`: the presets with that precision and number of values, like `['osrm6', 'valhalla', 'stadia', 'mapbox6']`. A preset's `order` is about the tuples it gives back, not the string, so it says nothing about `order` here.
+- `options`: pass them to `decode` or `decodeFlat` to get `[lat, lng]` points for this reading, whichever order the string has.
+
+`decodeAuto(str, options?)` runs `detect`, decodes the string leniently with the best reading, and returns that reading with `coordinates`, the `issues` that `onIssue` reported (empty for a valid string) and all the `candidates`.
+
+Options, all optional: `precisions`, `orders` and `dimensions` (arrays of what to try), `flexible: false` to skip Flexible, `isLand` (below) and `sample`.
+
+### How it scores
+
+Each reading gets a score for how much its points look like real geometry, and the scores become probabilities with a softmax:
+
+- Every point in range. A precision 6 string read at 5 gives latitudes ten times too big, usually past 90, and so does a longitude read as a latitude.
+- The typical distance between points: tens to hundreds of meters scores best. It's broad on purpose, because 1 Hz walking tracks (about 1 m) and simplified overview lines (Mapbox's test response has 3.5 km steps, Google's example 250 km) are both real. A line with only a few steps counts for less here.
+- No jumps 10,000 times longer than the typical step.
+- Each step going on roughly in the direction of the last one. On the 1000 real-world lines the average cosine of the turns was 0.85, and under 0.54 for 1 in 100. A wrong number of values per point mixes latitude, longitude and elevation deltas, and the directions come out random: about 0.
+- Elevation between -500 and 9000 m, for three values per point.
+- Valid in strict mode: a reading the string is cut off under, while another isn't, loses points. Characters outside the format count against every Google reading, and digits or `-` count for Flexible.
+- A prior: precision 5 is the most common, then 6, then 7, and latitude first is the format's own order.
+- With `isLand`, points at sea.
+
+The string is decoded once, with the core's `decodeFlat` at factor 1. That gives the integers every Google reading shares: a precision only divides them, an order swaps two, and three values per point regroups them. Scoring then looks at up to `sample` points (default 256) spread over the line, so a long line costs one fast decode and a fixed amount of work. On the 10,000-point benchmark track `detect` took about 1.2 ms on Node 25, where `decode` took 0.15 ms. At 10 points it took 0.07 ms. `decodeAuto` adds one `decode`.
+
+### Accuracy
+
+`node scripts/detect-accuracy.js` (and `--land` for the mask below) prints these tables. "Right" means the best reading has the precision, order and number of values the string was written with.
+
+| Input | Lines | Right | With `isLand` |
+|---|--:|--:|--:|
+| Real-world lines, precision 5 | 1000 | 100.0% | 100.0% |
+| The same, re-encoded at precision 6 | 1000 | 99.9% | 99.9% |
+| The same, re-encoded at precision 7 | 1000 | 99.9% | 99.9% |
+| The same, longitude first | 1000 | 0.0% | 0.0% |
+| Test vectors, decode cases with a known precision | 113 | 71.7% | 68.1% |
+| PostGIS fixture: zeros, ties, bounds, one point | 116 | 44.8% | 39.7% |
+| Generated tracks in 12 places, precision 5 | 600 | 100.0% | 91.7% |
+| The same, precision 6 | 600 | 100.0% | 91.7% |
+| The same, longitude first | 600 | 18.5% | 49.0% |
+| GraphHopper's test strings with elevation | 2 | 100.0% | 100.0% |
+| Generated tracks with elevation | 240 | 100.0% | 91.7% |
+
+The real-world lines are the benchmark's 1000 routes, all in Turkey. The generated tracks are polyline-benchmark's GPS-like tracks (1 Hz, walking to highway speed, with stops), made even in meters: 50 tracks of 200 points around each place in the table below. The vectors and the PostGIS cases are edge cases by design: one or two points, zeros, the ends of the range. Many of them are the same line at more than one precision, so no reading gets all of them right.
+
+Longitude first, per place:
+
+| Place | Without | With `isLand` |
+|---|--:|--:|
+| Istanbul | 0% | 0% |
+| Sao Paulo | 0% | 100% |
+| Seattle | 34% | 100% |
+| Sydney | 44% | 44% |
+| Berlin | 0% | 100% |
+| Nairobi | 0% | 100% |
+| Singapore | 66% | 66% |
+| Quito | 0% | 0% |
+| Suva, Fiji (by the antimeridian) | 62% | 62% |
+| Chukotka (by the antimeridian) | 16% | 16% |
+| Svalbard (78 N) | 0% | 0% |
+| McMurdo (78 S) | 0% | 0% |
+
+### Latitude and longitude swaps
+
+A swapped string can only be told apart when the swapped reading is impossible or implausible, and often it's neither. When the longitude is past 90, the latitude-first reading is out of range, but the same reading at precision 6 usually isn't, and then the precision prior and the step lengths decide. That's close to a coin toss (Seattle, Sydney, Singapore). When both readings land on land, nothing in the string tells them apart: Istanbul's routes read swapped land in Saudi Arabia, which is why the real-world lines score 0% longitude first, with or without a mask. I tried right angles at turns too, which a swapped reading stretches out of shape away from the equator. It picked the right order for 75% of the real-world lines, but weighting it enough to matter cost more correct readings of normal strings than it fixed, so it's not in. If you know your data, pass `orders: ['latlng']`.
+
+`@duoquote/polytini/detect/land` has `isLand(lat, lng)`, a 1 by 1 degree grid from Natural Earth's 1:110m land (public domain). Pass it as `detect(str, { isLand })`, or pass your own function for a finer mask. It catches swaps and precision mix-ups that land at sea: Sao Paulo, Berlin and Nairobi swapped go from 0% to 100%, Seattle from 34%. It costs too: a line the mask counts as sea loses to any reading that lands on land. That's what happens to McMurdo, on the Ross Ice Shelf, whose tracks drop to 0% at every precision, and it's the 91.7% rows. Coasts are generous (a cell counts if it has any land in it), but ice shelves and small islands missing from the 1:110m data count as sea.
+
+So the mask isn't in `/detect` itself, and you pick it:
+
+| Mask | Gzipped | Longitude first, generated tracks |
+|---|--:|--:|
+| none | 0 B | 18.5% |
+| 3 degrees | 689 B | 40.7% |
+| 2 degrees | 993 B | 40.7% |
+| 1 degree (`/detect/land`) | 2,067 B | 49.0% |
+
+`/detect` is 4,051 bytes gzipped: the core's decoder, `/flexible`'s decoder, the presets and the scoring. No other entry includes it. `scripts/landmask.js` builds the mask, with `--cell` for the other sizes.
+
+### Limits
+
+- One polyline per call. Quotes or a trailing newline make every Google reading invalid, so trim the string first.
+- A line of one or two points has little to go on beyond the range, so the prior decides most of those.
+- Three values per point with an elevation that hardly changes (about 10 cm per point or less) can read as a valid two-value line with small wiggles. In the tests, with a steady climb of 10 cm per point, the two-value reading won for 1 track in 5.
+- It doesn't try other `zFactor`s for the third value, `factor`s that aren't a power of ten, or more than three values per point.

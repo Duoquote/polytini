@@ -51,8 +51,8 @@ for (let i = 0; i < 64; i++) T[E.charCodeAt(i)] = i;
 
 // The characters of every value below 1024, so one or two characters cost
 // one concatenation instead of a loop.
-const C = [];
-for (let z = 0; z < 1024; z++) C[z] = z < 32 ? E[z] : E[(z & 31) | 32] + E[z >> 5];
+// A pure call, so a bundle that only decodes (like /detect's) drops it.
+const C = /* @__PURE__ */ Array.from({ length: 1024 }, (_, z) => (z < 32 ? E[z] : E[(z & 31) | 32] + E[z >> 5]));
 
 // 10 ** p from parsed literals, so every factor is exact.
 const P = [];

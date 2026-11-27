@@ -6,6 +6,8 @@ import { osrm6, graphhopper3d } from '@duoquote/polytini/presets';
 import * as flexible from '@duoquote/polytini/flexible';
 import * as lite from '@duoquote/polytini/lite';
 import * as stream from '@duoquote/polytini/stream';
+import { detect, decodeAuto } from '@duoquote/polytini/detect';
+import { isLand } from '@duoquote/polytini/detect/land';
 import { toFeature, fromGeoJSON } from '@duoquote/polytini/turf';
 import { polylineData, addPolylineLayer } from '@duoquote/polytini/maplibre';
 import { decodePath, encodePath } from '@duoquote/polytini/google';
@@ -76,6 +78,9 @@ async function run() {
   const issues = [];
   polytini.decode(GOOGLE + '!', { strict: false, onIssue: (e) => issues.push(e) });
   check('default: onIssue', issues.length === 1 && issues[0] instanceof polytini.PolylineError && issues[0].index === GOOGLE.length);
+  check('detect: Google example', detect(GOOGLE)[0].precision === 5 && close(decodeAuto(GOOGLE).coordinates, POINTS));
+  check('detect: flexible', detect(HERE)[0].format === 'flexible');
+  check('detect/land', isLand(41, 29) && !isLand(0, 0) && detect(GOOGLE, { isLand })[0].precision === 5);
 
   // A fetch body in small pieces, the way a Worker gets one from upstream.
   const body = (text, size) => new ReadableStream({ start(c) { const b = new TextEncoder().encode(text); for (let i = 0; i < b.length; i += size) c.enqueue(b.subarray(i, i + size)); c.close(); } });

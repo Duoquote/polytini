@@ -20,6 +20,8 @@
     "./deckgl": "./src/deckgl.js",
     "./flexible": "./src/flexible.js",
     "./stream": "./src/stream.js",
+    "./detect": "./src/detect.js",
+    "./detect/land": "./src/detect-land.js",
     "./cli": "./src/cli.js"
   },
   "publish": {

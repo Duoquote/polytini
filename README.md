@@ -121,13 +121,14 @@ Options are a precision number or `{ precision, factor, order, strict, dimension
 | `@duoquote/polytini/deckgl` | deck.gl binary paths and polygons, no array per point |
 | `@duoquote/polytini/flexible` | HERE's Flexible Polyline, a drop-in for `@here/flexpolyline` |
 | `@duoquote/polytini/stream` | Decode a polyline as it downloads, encode points as they come, one polyline per line (NDJSON) |
+| `@duoquote/polytini/detect` | Work out a string's precision, coordinate order, values per point or HERE format, and decode it |
 | `@duoquote/polytini/wasm` | Opt-in WebAssembly build, with batch calls |
 
 None of them import their map library; you pass it in or use what they return. Examples for each: [docs/integrations.md](docs/integrations.md).
 
 ## Notes
 
-- The precision isn't stored in the string. A `polyline6` string decoded at 5 gives coordinates ten times too big, with no error.
+- The precision isn't stored in the string. A `polyline6` string decoded at 5 gives coordinates ten times too big, with no error. When you don't know where a string came from, `@duoquote/polytini/detect` ranks the readings; it got the precision right for 99.9% of the real-world lines at precision 5, 6 and 7, but it can't always tell a latitude and longitude swap ([docs/api.md](docs/api.md#detecting-the-encoding)).
 - Strict mode throws on invalid characters, cut-off strings and NaN coordinates. Pass `strict: false` to never throw.
 - `/wasm` pays off for typed arrays (`decodeFlat`, `encodeFlat`) and for many lines in one call (`decodeMany`). On V8 (Chrome, Node, Deno) it also uses JS String Builtins, which made short lines 10 to 65% faster. For `[lat, lng]` arrays the default entry is as fast or faster. Numbers: [docs/platforms.md](docs/platforms.md#wasm).
 - Need a small browser bundle? `@duoquote/polytini/lite` is 295 bytes gzipped for decode and 503 for both, as fast as the default entry in browsers, precision up to 6, and still strict. On Node, Bun and Deno the default entry is faster on long lines, so use that there: [docs/api.md](docs/api.md#smaller-lite).

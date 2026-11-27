@@ -42,6 +42,8 @@ export const entries = [
   { name: 'flexible', file: 'src/flexible.js', platform: 'browser', budget: 2200 },
   { name: 'stream', file: 'src/stream.js', platform: 'browser', budget: 3780 },
   { name: 'stream, PolylineDecoder only', code: "export { PolylineDecoder } from './src/stream.js'", platform: 'browser', budget: 1860 },
+  { name: 'detect', file: 'src/detect.js', platform: 'browser', budget: 4220 },
+  { name: 'detect/land', file: 'src/detect-land.js', platform: 'browser', budget: 2150 },
   { name: 'google', file: 'src/google.js', platform: 'browser', budget: 2060 },
   { name: 'openlayers', file: 'src/openlayers.js', platform: 'browser', budget: 1110 },
   { name: 'maplibre', file: 'src/maplibre.js', platform: 'browser', budget: 1600 },
