@@ -163,7 +163,7 @@ with `--exe` for the other runtimes. On the 1000 real-world lines, one `Polyline
 
 ## Size
 
-Gzipped with `node scripts/size.js`: 3,624 bytes for the whole entry, 1,717 for `PolylineDecoder` alone. The CLI, which uses it, is 6,918.
+Gzipped with `node scripts/size.js`: 3,721 bytes for the whole entry, 1,782 for `PolylineDecoder` alone. The CLI, which uses it, is 6,987.
 
 ## How it's tested
 

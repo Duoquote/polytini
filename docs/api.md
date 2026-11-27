@@ -305,7 +305,7 @@ So the mask isn't in `/detect` itself, and you pick it:
 | 2 degrees | 993 B | 40.7% |
 | 1 degree (`/detect/land`) | 2,067 B | 49.0% |
 
-`/detect` is 4,051 bytes gzipped: the core's decoder, `/flexible`'s decoder, the presets and the scoring. No other entry includes it. `scripts/landmask.js` builds the mask, with `--cell` for the other sizes.
+`/detect` is 4,048 bytes gzipped: the core's decoder, `/flexible`'s decoder, the presets and the scoring. No other entry includes it. `scripts/landmask.js` builds the mask, with `--cell` for the other sizes.
 
 ### Limits
 

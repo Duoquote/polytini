@@ -1698,7 +1698,7 @@ So the mask isn't in `/detect` itself, and you pick it:
 | 2 degrees | 993 B | 40.7% |
 | 1 degree (`/detect/land`) | 2,067 B | 49.0% |
 
-`/detect` is 4,051 bytes gzipped: the core's decoder, `/flexible`'s decoder, the presets and the scoring. No other entry includes it. `scripts/landmask.js` builds the mask, with `--cell` for the other sizes.
+`/detect` is 4,048 bytes gzipped: the core's decoder, `/flexible`'s decoder, the presets and the scoring. No other entry includes it. `scripts/landmask.js` builds the mask, with `--cell` for the other sizes.
 
 #### Limits
 
@@ -1872,7 +1872,7 @@ with `--exe` for the other runtimes. On the 1000 real-world lines, one `Polyline
 
 ### Size
 
-Gzipped with `node scripts/size.js`: 3,624 bytes for the whole entry, 1,717 for `PolylineDecoder` alone. The CLI, which uses it, is 6,918.
+Gzipped with `node scripts/size.js`: 3,721 bytes for the whole entry, 1,782 for `PolylineDecoder` alone. The CLI, which uses it, is 6,987.
 
 ### How it's tested
 
