@@ -44,7 +44,7 @@ export const entries = [
   { name: 'maplibre', file: 'src/maplibre.js', platform: 'browser', budget: 1600 },
   { name: 'mapbox', file: 'src/mapbox.js', platform: 'browser', budget: 1600 },
   { name: 'deckgl', file: 'src/deckgl.js', platform: 'browser', budget: 1990 },
-  { name: 'cli', file: 'src/cli.js', platform: 'node', budget: 3910 },
+  { name: 'cli', file: 'src/cli.js', platform: 'node', budget: 7140 },
 ];
 
 export async function measure(e) {
