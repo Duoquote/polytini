@@ -111,6 +111,7 @@ export default defineConfig({
       // always runs the current code. The browser entry is what a bundler
       // picks for a browser build of the published package.
       { find: /^@duoquote\/polytini$/, replacement: resolve(repo, "src/browser.js") },
+      { find: /^@duoquote\/polytini\/detect\/land$/, replacement: resolve(repo, "src/detect-land.js") },
       { find: /^@duoquote\/polytini\/(.+)$/, replacement: resolve(repo, "src/$1.js") },
       { find: "@", replacement: resolve(import.meta.dirname, "./src") },
     ],

@@ -29,6 +29,8 @@
       "@duoquote/polytini/flexible": ["../types/flexible.d.ts"],
       "@duoquote/polytini/wasm": ["../types/wasm.d.ts"],
       "@duoquote/polytini/stream": ["../types/stream.d.ts"],
+      "@duoquote/polytini/detect": ["../types/detect.d.ts"],
+      "@duoquote/polytini/detect/land": ["../types/detect-land.d.ts"],
       "@duoquote/polytini/maplibre": ["../types/maplibre.d.ts"],
       "maplibre-gl": ["./node_modules/maplibre-gl/dist/maplibre-gl.d.ts"],
       "geojson": ["./node_modules/@types/geojson/index.d.ts"]
