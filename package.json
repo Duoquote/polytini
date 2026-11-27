@@ -1,6 +1,6 @@
 {
   "name": "@duoquote/polytini",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Encode and decode Google encoded polylines, polyline6 included. Strict by default, no dependencies, with builds for Node, Bun, Deno, browsers and Cloudflare Workers, and adapters for Leaflet, MapLibre, Mapbox GL, OpenLayers, deck.gl, Turf and Google Maps.",
   "keywords": [
     "polyline",
@@ -202,7 +202,6 @@
     "test:workers": "node scripts/test-workers.js",
     "test:bun": "bun test/run.js",
     "test:deno": "deno run --allow-read --allow-env --allow-run --allow-write test/run.js",
-    "test:browser": "node test/browser.js",
     "size": "node scripts/size.js",
     "smoke": "node test/smoke.js",
     "check:deps": "node scripts/check-deps.js",

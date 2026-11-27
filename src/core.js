@@ -255,14 +255,17 @@ function encodeLoop(src, f, a, flat) {
 // Helpers built on top of an entry point's own decode and encode, so every
 // entry uses its fastest paths. Entries call these with /* @__PURE__ */, so
 // bundlers drop the ones nobody imports.
-const lngLat = (o) => ({ ...(typeof o == 'number' ? { precision: o } : o), order: 'lnglat' });
+// The caller's options with the coordinate order these helpers need, whatever
+// order a preset asked for (osrm6, valhalla and mapbox6 use 'lnglat').
+const withOrder = (o, order = 'lnglat') => ({ ...(typeof o == 'number' ? { precision: o } : o), order });
 
-/** {lat, lng} objects, the shape Google Maps and Leaflet take. */
-export const latLngs = (decode) => (str, o) => decode(str, o).map(([lat, lng]) => ({ lat, lng }));
+/** {lat, lng} objects, the shape Google Maps and Leaflet take. Forces
+ * [lat, lng] order so a preset like osrm6 (order: 'lnglat') can't swap them. */
+export const latLngs = (decode) => (str, o) => decode(str, withOrder(o, 'latlng')).map(([lat, lng]) => ({ lat, lng }));
 
-export const toGeo = (decode) => (str, o) => ({ type: 'LineString', coordinates: decode(str, lngLat(o)) });
+export const toGeo = (decode) => (str, o) => ({ type: 'LineString', coordinates: decode(str, withOrder(o)) });
 
 export const fromGeo = (encode) => (g, o) => {
   if (g?.type == 'Feature') g = g.geometry;
-  return g?.type == 'LineString' ? encode(g.coordinates, lngLat(o)) : fail('input', 'Expected a LineString');
+  return g?.type == 'LineString' ? encode(g.coordinates, withOrder(o)) : fail('input', 'Expected a LineString');
 };

@@ -309,3 +309,16 @@ test('presets: toGeoJSON with any preset gives [lng, lat]', () => {
     for (const p of [osrm6, valhalla, mapbox6]) eq(api.toGeoJSON(s6, p).coordinates, [[-120.2, 38.5]], name);
   }
 });
+
+// Regression: decodeLatLng passed the preset's order: 'lnglat' through, so
+// osrm6 and friends came back with lat and lng swapped (fixed in 0.1.3).
+test('presets: decodeLatLng with any preset gives {lat, lng} the right way round', () => {
+  for (const { name, api } of list) {
+    const s = api.encode([[38.5, -120.2], [40.7, -120.95]], google);
+    for (const p of [google, strava, otp, osrm, graphhopper])
+      eq(api.decodeLatLng(s, p), [{ lat: 38.5, lng: -120.2 }, { lat: 40.7, lng: -120.95 }], name);
+    const s6 = api.encode([[38.5, -120.2], [40.7, -120.95]], { precision: 6 });
+    for (const p of [osrm6, valhalla, mapbox6])
+      eq(api.decodeLatLng(s6, p), [{ lat: 38.5, lng: -120.2 }, { lat: 40.7, lng: -120.95 }], name);
+  }
+});
