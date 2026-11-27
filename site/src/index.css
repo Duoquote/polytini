@@ -132,3 +132,31 @@
     @apply font-sans;
     }
 }
+/* Code: Shiki writes both themes into the HTML as CSS variables at build
+   time (github-light-default and github-dark-default); the .tok-* classes
+   use the same colors for JSON typed live. */
+:root {
+  --code-key: #116329;
+  --code-str: #0a3069;
+  --code-num: #0550ae;
+  --code-fn: #8250df;
+}
+.dark {
+  --code-key: #7ee787;
+  --code-str: #a5d6ff;
+  --code-num: #79c0ff;
+  --code-fn: #d2a8ff;
+}
+.code span[style] {
+  color: var(--shiki-light);
+}
+.dark .code span[style] {
+  color: var(--shiki-dark);
+}
+.code .tok-key { color: var(--code-key); }
+.code .tok-str { color: var(--code-str); }
+.code .tok-num { color: var(--code-num); }
+.code .tok-fn { color: var(--code-fn); }
+:root { --code-com: #59636e; }
+.dark { --code-com: #9198a1; }
+.code .tok-com { color: var(--code-com); }

@@ -1,15 +1,8 @@
 import { CommandLine } from "@/components/copy-button"
 import { useDark } from "@/lib/use-dark"
+import { INSTALL } from "@/snippets"
 import light from "@/assets/logo/light.webp"
 import dark from "@/assets/logo/dark.webp"
-
-const INSTALL = [
-  ["pnpm", "pnpm add @duoquote/polytini"],
-  ["Bun", "bun add @duoquote/polytini"],
-  ["Deno", "deno add jsr:@duoquote/polytini"],
-  ["Yarn", "yarn add @duoquote/polytini"],
-  ["npm", "npm i @duoquote/polytini"],
-] as const
 
 export const LINKS = [
   ["GitHub", "https://github.com/Duoquote/polytini"],
@@ -35,11 +28,18 @@ export function Hero() {
               className="size-20 sm:size-24"
               fetchPriority="high"
             />
-            <div>
-              <h1 id="hero-title" className="font-heading text-4xl font-semibold tracking-tight sm:text-5xl">
+            {/* text-4xl and text-5xl come with a line height of 1 or close to
+                it, so the descenders of p and y hang below the line box and
+                the line under it overlapped them. An explicit leading keeps
+                them inside the box at every size. */}
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <h1
+                id="hero-title"
+                className="font-heading text-4xl leading-[1.2] font-semibold tracking-tight sm:text-5xl sm:leading-[1.2]"
+              >
                 polytini
               </h1>
-              <p className="mt-1 font-mono text-xs text-muted-foreground">
+              <p className="font-mono text-xs leading-normal text-muted-foreground">
                 v{__POLYTINI_VERSION__} · MIT · 0 dependencies
               </p>
             </div>

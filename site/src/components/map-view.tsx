@@ -12,6 +12,7 @@ const STYLE = {
 }
 
 // More room at the bottom, where the attribution sits (two lines on a phone).
+const MAX_ZOOM = 15
 const PADDING = { top: 40, right: 48, bottom: 72, left: 40 }
 
 export const MAP_COLORS = {
@@ -70,7 +71,6 @@ export function MapView({
   onStyle,
   label,
   className,
-  maxZoom = 15,
   fitTo,
 }: {
   /** Bounds to start with when there's no data to fit. */
@@ -83,7 +83,6 @@ export function MapView({
   onStyle?: (map: MapLibreMap) => void
   label: string
   className?: string
-  maxZoom?: number
 }) {
   const box = useRef<HTMLDivElement>(null)
   const container = useRef<HTMLDivElement>(null)
@@ -91,11 +90,11 @@ export function MapView({
   const near = useNearViewport(box)
   const dark = useDark()
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle")
-  const latest = useRef({ data, dark, onMapClick, onStyle, maxZoom })
+  const latest = useRef({ data, dark, onMapClick, onStyle })
   // Event handlers read the latest props from here. A layout effect runs
   // before the effects below, so they see this render's values.
   useLayoutEffect(() => {
-    latest.current = { data, dark, onMapClick, onStyle, maxZoom }
+    latest.current = { data, dark, onMapClick, onStyle }
   })
 
   const draw = (m: MapLibreMap) => {
@@ -156,7 +155,7 @@ export function MapView({
           container: container.current,
           style: latest.current.dark ? STYLE.dark : STYLE.light,
           ...(b
-            ? { bounds: b, fitBoundsOptions: { padding: PADDING, maxZoom: latest.current.maxZoom } }
+            ? { bounds: b, fitBoundsOptions: { padding: PADDING, maxZoom: MAX_ZOOM } }
             : { center: [0, 20], zoom: 1 }),
           attributionControl: { compact: true },
           cooperativeGestures: false,
@@ -173,7 +172,7 @@ export function MapView({
           // again at the final size.
           m.resize()
           const fit = latest.current.data ? bounds(latest.current.data) : (fitTo ?? null)
-          if (fit) m.fitBounds(fit, { padding: PADDING, maxZoom: latest.current.maxZoom, duration: 0 })
+          if (fit) m.fitBounds(fit, { padding: PADDING, maxZoom: MAX_ZOOM, duration: 0 })
         })
         if (latest.current.onMapClick) m.getCanvas().style.cursor = "crosshair"
         m.getCanvas().setAttribute("aria-label", label)
@@ -203,7 +202,7 @@ export function MapView({
     const m = map.current
     if (!m || !data) return
     const b = bounds(data)
-    if (b) m.fitBounds(b, { padding: PADDING, maxZoom, duration: 400 })
+    if (b) m.fitBounds(b, { padding: PADDING, maxZoom: MAX_ZOOM, duration: 400 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitKey])
 

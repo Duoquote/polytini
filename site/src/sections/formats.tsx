@@ -19,7 +19,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { CodeBlock } from "@/components/code-block"
+import { CodeInput } from "@/components/code-input"
 import { ErrorBox } from "@/components/error-box"
+import { tokenize } from "@/lib/highlight"
 import { Section } from "@/components/section"
 import { GOOGLE } from "@/lib/examples"
 import { errorInfo } from "@/lib/geo"
@@ -30,12 +32,17 @@ function Converter({
   initial,
   run,
   rows = 4,
+  inLang,
+  outLang,
 }: {
   title: string
   call: string
   initial: string
   run: (input: string) => string
   rows?: number
+  /** "json" for coordinates, "text" for a polyline. */
+  inLang: "json" | "text"
+  outLang: "json" | "text"
 }) {
   const id = useId()
   const [input, setInput] = useState(initial)
@@ -49,17 +56,26 @@ function Converter({
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <Label htmlFor={id}>{title}</Label>
-      <Textarea
-        id={id}
-        value={input}
-        rows={rows}
-        spellCheck={false}
-        autoComplete="off"
-        className="font-mono text-xs break-all"
-        onChange={(e) => setInput(e.target.value)}
-      />
-      <p className="font-mono text-xs text-muted-foreground">{call}</p>
-      {result.error ? <ErrorBox error={result.error} /> : <CodeBlock code={result.out ?? ""} maxHeight="16rem" />}
+      {inLang === "json" ? (
+        <CodeInput id={id} value={input} rows={rows} onChange={setInput} invalid={!!result.error} />
+      ) : (
+        <Textarea
+          id={id}
+          value={input}
+          rows={rows}
+          spellCheck={false}
+          autoComplete="off"
+          className="font-mono text-xs break-all"
+          aria-invalid={!!result.error || undefined}
+          onChange={(e) => setInput(e.target.value)}
+        />
+      )}
+      <p className="code font-mono text-xs" dangerouslySetInnerHTML={{ __html: tokenize(call) }} />
+      {result.error ? (
+        <ErrorBox error={result.error} />
+      ) : (
+        <CodeBlock code={result.out ?? ""} lang={outLang} maxHeight="16rem" />
+      )}
     </div>
   )
 }
@@ -137,7 +153,7 @@ function Flexible() {
           title="Points with elevation, as [lat, lng, z]"
           call={`encode({ polyline, precision: ${precision}, thirdDim: ${name}, thirdDimPrecision: ${thirdDimPrecision} })`}
           initial={"[\n  [50.10228, 8.69821, 112.5],\n  [50.10201, 8.69567, 113.1],\n  [50.10063, 8.6915, 114.8],\n  [50.09878, 8.68752, 116.2]\n]"}
-          run={run}
+          run={run} inLang="json" outLang="text"
           rows={6}
         />
       </div>
@@ -155,7 +171,7 @@ function Flexible() {
           thirdDim: flexible.ELEVATION,
           thirdDimPrecision: 1,
         })}
-        run={flexOut}
+        run={flexOut} inLang="text" outLang="json"
         rows={2}
       />
     </div>
@@ -182,7 +198,7 @@ export function Formats() {
         </TabsList>
         <TabsContent value="geojson" className="mt-4">
           <Pair>
-            <Converter title="Polyline to GeoJSON" call="toGeoJSON(str) // always [lng, lat]" initial={GOOGLE} run={geoOut} rows={2} />
+            <Converter title="Polyline to GeoJSON" call="toGeoJSON(str) // always [lng, lat]" initial={GOOGLE} run={geoOut} inLang="text" outLang="json" rows={2} />
             <Converter
               title="GeoJSON to polyline"
               call="fromGeoJSON(lineStringOrFeature)"
@@ -191,19 +207,19 @@ export function Formats() {
                 properties: { name: "Google's example" },
                 geometry: { type: "LineString", coordinates: [[-120.2, 38.5], [-120.95, 40.7], [-126.453, 43.252]] },
               })}
-              run={geoIn}
+              run={geoIn} inLang="json" outLang="text"
               rows={8}
             />
           </Pair>
         </TabsContent>
         <TabsContent value="objects" className="mt-4">
           <Pair>
-            <Converter title="Polyline to objects" call="decodeLatLng(str) // for Google Maps and Leaflet" initial={GOOGLE} run={objOut} rows={2} />
+            <Converter title="Polyline to objects" call="decodeLatLng(str) // for Google Maps and Leaflet" initial={GOOGLE} run={objOut} inLang="text" outLang="json" rows={2} />
             <Converter
               title="Objects to polyline"
               call="encode(objects) // lat/latitude, lng/lon/longitude"
               initial={'[\n  { "lat": 38.5, "lng": -120.2 },\n  { "latitude": 40.7, "longitude": -120.95 },\n  { "lat": 43.252, "lon": -126.453 }\n]'}
-              run={objIn}
+              run={objIn} inLang="json" outLang="text"
               rows={5}
             />
           </Pair>
@@ -214,14 +230,14 @@ export function Formats() {
               title="Polyline to a Float64Array"
               call="decodeFlat(str) // [lat0, lng0, lat1, lng1, ...], no array per point"
               initial={GOOGLE}
-              run={flatOut}
+              run={flatOut} inLang="text" outLang="json"
               rows={2}
             />
             <Converter
               title="Flat numbers to polyline"
               call="encodeFlat(new Float64Array(numbers))"
               initial="[38.5, -120.2, 40.7, -120.95, 43.252, -126.453]"
-              run={flatIn}
+              run={flatIn} inLang="json" outLang="text"
               rows={2}
             />
           </Pair>
