@@ -13,22 +13,23 @@ export const INSTALL = [
   ["npm", "npm i @duoquote/polytini"],
 ] as const
 
-// A short walk in Berlin: the Brandenburg Gate, the Reichstag and the main
-// station, at precision 5. The string has no backtick, backslash, | or ^,
-// and polylines never contain ' " $ % or !, so double quotes keep it intact
-// in bash, zsh, fish, PowerShell and cmd. Checked by running each line in
-// cmd, PowerShell 5.1 and Git Bash.
-export const CLI_POLYLINE = "wap_IuyspAsMpHkg@hi@"
-export const CLI_POINTS = "[[52.51628,13.37771],[52.51862,13.37618],[52.52508,13.36941]]"
+// The examples from docs/cli.md: Westminster, Buckingham Palace and
+// Trafalgar Square, one way and back. The string has no backtick,
+// backslash, | or ^, and polylines never contain ' " $ % or !, so double
+// quotes keep it intact in every shell; the coordinates need no quotes.
+// Checked by running each line in cmd, PowerShell 5.1 and Git Bash.
+export const CLI_POLYLINE = "kviyHviWkCbkBsg@guA"
+export const CLI_POINTS = "51.5007,-0.1246 51.5014,-0.1419 51.5079,-0.1281"
 
 const runners = [
   "pnpm dlx @duoquote/polytini",
   "bunx @duoquote/polytini",
   "deno run jsr:@duoquote/polytini/cli",
+  "yarn dlx @duoquote/polytini",
   "npx @duoquote/polytini",
 ]
 export const CLI_DECODE = runners.map((r) => `${r} decode "${CLI_POLYLINE}"`)
-export const CLI_ENCODE = runners.map((r) => `${r} encode "${CLI_POINTS}"`)
+export const CLI_ENCODE = runners.map((r) => `${r} encode ${CLI_POINTS}`)
 
 export const INTEGRATIONS: { id: string; label: string; code: string; note: string }[] = [
   {
@@ -93,6 +94,17 @@ const path = decodePath(route.polyline.encodedPolyline); // LatLng[] once Maps h
 new google.maps.Polyline({ path, map });
 encodePath(polyline.getPath());                           // MVCArray<LatLng> to string`,
     note: "A drop-in for google.maps.geometry.encoding.decodePath and encodePath, strict by default too.",
+  },
+  {
+    id: "stream",
+    label: "Streaming",
+    code: `import { DecodeStream } from '@duoquote/polytini/stream';
+
+const res = await fetch(url);
+for await (const points of res.body.pipeThrough(new DecodeStream(6))) {
+  draw(points); // the points each chunk completed
+}`,
+    note: "For a polyline that arrives in pieces. The points are exactly what decode gives on the whole string, errors included, wherever the chunks are cut. There are also encoders, PolylineDecoder with write and end for code without streams, and one polyline per line for NDJSON.",
   },
 ]
 

@@ -65,12 +65,16 @@ export function Integrations() {
               Quoting your own polylines: single quotes in bash, zsh and PowerShell, double quotes in cmd.
             </p>
             <p>
-              The example is a short walk in Berlin, from the Brandenburg Gate past the Reichstag to the main station. It
-              has none of the characters shells treat specially, so these lines work as they are in bash, zsh, fish,
-              PowerShell and cmd. Your own polylines can contain <code>`</code>, <code>\</code>, <code>|</code> and{" "}
-              <code>^</code>, which is why they need the quotes above. For a long line or many points, use{" "}
-              <code>--file points.json</code> (JSON, GeoJSON, CSV or one point per line), <code>-p 6</code> for
-              precision 6 and <code>-f geojson</code> for GeoJSON out.
+              The examples are three points in London, Westminster, Buckingham Palace and Trafalgar Square, one in each
+              direction. They have none of the characters shells treat specially, so these lines work as they are in
+              bash, zsh, fish, PowerShell and cmd. Your own polylines can contain <code>`</code>, <code>\</code>,{" "}
+              <code>|</code> and <code>^</code>, which is why they need the quotes above. For a long line or many points,
+              use <code>--file</code> (JSON, GeoJSON, CSV or one point per line), <code>--lines</code> for one result per
+              line, <code>-p 6</code> for precision 6 and <code>-f geojson</code> for GeoJSON out.
+            </p>
+            <p>
+              <code>yarn dlx</code> needs Yarn 2 or newer. Yarn 4.19 and newer also won't install a version that's less
+              than a day old, so for a day after each release it fails with YN0016. Use another launcher then.
             </p>
           </div>
         </TabsContent>

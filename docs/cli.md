@@ -24,6 +24,8 @@ The first two use the same three points in London, Westminster, Buckingham Palac
 
 `yarn dlx` needs Yarn 2 or newer; on Yarn 1, use `npx`. It prints Yarn's install log to stdout before the output, so add `-q` when you pipe it: `yarn dlx -q @duoquote/polytini decode ...`.
 
+Yarn 4.19 and newer won't install a package version that's less than a day old (the `npmMinimalAgeGate` setting, 1440 minutes by default). So for a day after each release, `yarn dlx @duoquote/polytini` fails with `YN0016: The version for tag "latest" is quarantined`. Use `npx` or another launcher until then, or pin a version that's at least a day old: `yarn dlx @duoquote/polytini@<version> ...`. If you'd rather take the new release right away, `YARN_NPM_MINIMAL_AGE_GATE=0` turns the check off for that command.
+
 I ran every command on this page in cmd, PowerShell 5.1 and Git Bash, with each of the five launchers (Yarn 4.19 for `yarn dlx`).
 
 ## Quoting
