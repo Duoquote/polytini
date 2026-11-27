@@ -1,0 +1,14 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "polytini",
+  "description": "Encode and decode Google encoded polylines in JavaScript and TypeScript (@duoquote/polytini on npm and JSR). Strict by default, no dependencies, builds per runtime, presets for routing engines, and adapters for Leaflet, Turf, MapLibre, Mapbox GL, OpenLayers, deck.gl and Google Maps.",
+  "excludeFolders": ["test", "bench", "scripts", "dist", "wasm", ".github"],
+  "excludeFiles": ["CHANGELOG.md", "RELEASING.md", "llms-full.txt"],
+  "rules": [
+    "Import @duoquote/polytini or one of its documented subpaths, never a file under src/ or dist/.",
+    "encode and decode use [lat, lng] by default. For GeoJSON, OSRM, Valhalla, Mapbox, MapLibre and deck.gl coordinates, pass order: 'lnglat' or a preset from @duoquote/polytini/presets.",
+    "The precision isn't stored in the string. Google uses 5; OSRM polyline6, Valhalla and Mapbox polyline6 use 6.",
+    "Strict mode throws a PolylineError with a code on malformed input. Use strict: false only when lenient decoding is wanted.",
+    "Call await init() before using @duoquote/polytini/wasm. On Cloudflare Workers, pass it the module imported from @duoquote/polytini/polytini.wasm."
+  ]
+}
