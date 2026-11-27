@@ -61,7 +61,7 @@ It gets a `PolylineError`, created and not thrown, for each problem: every inval
 
 Decoding goes on after `onIssue` returns, and the output is the same as `strict: false` without it. To stop at the first problem, throw from it; decode then throws your error. With `strict: true` it's never called, and encode doesn't call it.
 
-Every decoder that takes `strict` takes it: `decode`, `decodeFlat`, `decodeLatLng`, `toGeoJSON` and the presets on every entry, `/wasm` (`decodeMany` reports each line's issues with the index in that line), the integrations that decode, `/stream` (the index is in the whole input, wherever the chunks were cut, and the line decoders add the 1-based `line`) and `/flexible`, which now takes `{ strict: false, onIssue }` too. Its header is always strict, because nothing after it can be read without it.
+Every decoder that takes `strict` takes it: `decode`, `decodeFlat`, `decodeLatLng`, `toGeoJSON` and the presets on every entry, `/wasm` (`decodeMany` reports each line's issues with the index in that line), the integrations that decode, `/stream` (the index is in the whole input, wherever the chunks were cut, and the line decoders add the 1-based `line`) and `/flexible`, which now takes `{ strict: false, onIssue }` too. Its header is always strict, because nothing after it can be read without it. `/lite` has no lenient mode, so it has no `onIssue` either.
 
 It costs nothing when you don't use it: only the slow decoder that already handles bad input reads it, so decoding valid input runs the same code as before. In paired runs against 0.1.7 on Node 24, Bun, Deno and Chrome the difference stayed inside the noise of 0.1.7 against itself ([CHANGELOG.md](../CHANGELOG.md)). `import { decode }` grew by 50 bytes gzipped.
 
