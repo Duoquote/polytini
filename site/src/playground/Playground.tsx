@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { CircleAlertIcon, FileUpIcon, Link2Icon, TriangleAlertIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CopyButton } from "@/components/copy-button"
-import { useNearViewport } from "@/lib/use-dark"
+import { useDark, useNearViewport } from "@/lib/use-dark"
+import { MAP_COLORS } from "./colors"
 import { analyze, type Analysis } from "./analyze"
 import { decodeWith, describe as describeInterp, type Interp } from "./detect"
 import { encodeCollection, encodeLine, presetOut, PRESET_LIST, type PolylineOut } from "./encode"
@@ -42,7 +43,12 @@ export function Playground() {
   const geo = useGeometry()
   // Stable callbacks: depending on the whole geo object would rerun the input
   // analysis after every edit and throw the edit away.
-  const { set: setGeom, undo, redo } = geo
+  const { set: setGeom, undo, redo, preview: setPreview, apply: commitPreview, cancel: dropPreview } = geo
+  // Bumped when a preview is applied or cancelled, or new input arrives: the
+  // tool tabs remount with their settings back at the start.
+  const [epoch, setEpoch] = useState(0)
+  // A different reading of the input waiting for Apply: the chip or override picked.
+  const [pendingReading, setPendingReading] = useState<{ choice: string; override: Interp | null } | null>(null)
   // A shared link (#s=...) starts empty and fills in below; otherwise the OSRM example.
   const shared = /^#s=/.test(location.hash)
   const [text, setText] = useState(() => (shared ? "" : EXAMPLES[1].text()))
@@ -54,7 +60,6 @@ export function Playground() {
   const [scope, setScope] = useState<"all" | "selected">("all")
   const [selected, setSelected] = useState(0)
   const [hover, setHover] = useState<Hover>(null)
-  const [ghost, setGhost] = useState<Collection | null>(null)
   const [fitKey, setFitKey] = useState(0)
   const [credit, setCredit] = useState<string | null>(() => (shared ? null : `${EXAMPLES[1].note} Source: ${EXAMPLES[1].credit}`))
   const [shareState, setShareState] = useState<"idle" | "copied" | "error">("idle")
@@ -74,7 +79,8 @@ export function Playground() {
       setGeom(c, "input")
       setSelected(0)
       setHover(null)
-      setGhost(null)
+      setPendingReading(null)
+      setEpoch((e) => e + 1)
       setFitKey((k) => k + 1)
     },
     [setGeom]
@@ -140,23 +146,67 @@ export function Playground() {
     return () => window.removeEventListener("keydown", onKey)
   }, [undo, redo])
 
+  const previewFix = useCallback((r: Collection | null, label?: string) => setPreview("fix", r, label), [setPreview])
+  const previewCompact = useCallback((r: Collection | null, label?: string) => setPreview("compact", r, label), [setPreview])
+  const pendingSource = geo.pending?.source ?? null
+
+  const applyPending = () => {
+    if (!geo.pending) return
+    if (geo.pending.source === "reading" && pendingReading) {
+      setChoice(pendingReading.choice)
+      setOverride(pendingReading.override)
+      setSelected(0)
+      setFitKey((k) => k + 1)
+    }
+    commitPreview()
+    setPendingReading(null)
+    setHover(null)
+    setEpoch((e) => e + 1)
+  }
+  const cancelPending = () => {
+    dropPreview()
+    setPendingReading(null)
+    setEpoch((e) => e + 1)
+  }
+
+  // Escape drops a pending change, unless it's closing a menu.
+  const escape = useRef({ pending: false, cancel: cancelPending })
+  useLayoutEffect(() => {
+    escape.current = { pending: !!geo.pending, cancel: cancelPending }
+  })
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !escape.current.pending || e.defaultPrevented) return
+      if (document.querySelector("[data-radix-popper-content-wrapper]")) return
+      escape.current.cancel()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
+
   const current = analysis?.choices.find((c) => c.id === choice) ?? null
   const polylineInput = current?.kind === "polyline"
   const reading: Interp | null = override ?? current?.interp ?? null
   const overridden = useMemo(() => (override && text ? decodeWith(text, override) : null), [override, text])
   const issues = overridden ? overridden.issues : (current?.issues ?? [])
 
+  // Another reading of the input is a preview too: both lines show on the
+  // map until you apply one.
   const pickChoice = (id: string) => {
     const c = analysis?.choices.find((x) => x.id === id)
     if (!c) return
-    setChoice(id)
-    setOverride(null)
-    apply(c.collection)
+    if (id === choice && !override) return cancelPending()
+    setEpoch((e) => e + 1)
+    setPendingReading({ choice: id, override: null })
+    setPreview("reading", c.collection, `Read as ${c.label}`)
   }
   const pickOverride = (i: Interp) => {
-    setOverride(i)
+    if (!choice) return
+    if (JSON.stringify(i) === JSON.stringify(reading)) return cancelPending()
     const c = decodeWith(text, i)
-    apply(fromLines(c.lines.map((pts) => ({ pts, ring: false }))))
+    setEpoch((e) => e + 1)
+    setPendingReading({ choice, override: i })
+    setPreview("reading", fromLines(c.lines.map((pts) => ({ pts, ring: false }))), `Read as ${describeInterp(i)}`)
   }
 
   const lines = allLines(geo.collection)
@@ -195,7 +245,12 @@ export function Playground() {
     setTimeout(() => setShareState("idle"), 2000)
   }
 
-  const g = reading?.format === "google" ? reading : null
+  const committedG = reading?.format === "google" ? reading : null
+  // The override controls show the reading being previewed, if any.
+  const pendingOverride = pendingSource === "reading" ? pendingReading?.override : null
+  const g = pendingOverride?.format === "google" ? pendingOverride : committedG
+  const dark = useDark()
+  const colors = dark ? MAP_COLORS.dark : MAP_COLORS.light
 
   return (
     <section ref={section} id="playground" aria-labelledby="playground-title" className="scroll-mt-14 border-t py-8 sm:py-10">
@@ -250,7 +305,7 @@ export function Playground() {
         <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]">
           {/* Map first on small screens, on the right from lg up. */}
           <div className="order-first min-w-0 lg:order-last">
-            <div ref={mapBox} className="h-[55vh] min-h-80 lg:sticky lg:top-14 lg:h-[calc(100vh-4.5rem)]">
+            <div ref={mapBox} className="relative h-[55vh] min-h-80 lg:sticky lg:top-14 lg:h-[calc(100vh-4.5rem)]">
               {near ? (
                 <Suspense fallback={<div className="flex h-full items-center justify-center border bg-muted text-xs text-muted-foreground">Loading map</div>}>
                   <MapEditor
@@ -259,7 +314,7 @@ export function Playground() {
                     version={geo.version}
                     origin={geo.origin}
                     fitKey={fitKey}
-                    ghost={ghost}
+                    preview={geo.pending?.result ?? null}
                     hover={hover}
                     selectedLine={selected}
                     onChange={(c, commit) => geo.set(c, "map", commit)}
@@ -274,6 +329,45 @@ export function Playground() {
               ) : (
                 <div className="h-full border bg-muted" />
               )}
+              {geo.pending ? (
+                <div role="region" aria-label="Pending change" className="absolute right-2 bottom-8 left-2 z-10 flex flex-col gap-2 border bg-background/95 p-2.5 text-xs shadow-sm sm:right-auto sm:max-w-md">
+                  <p className="font-medium">{geo.pending.label || "Pending change"}</p>
+                  <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground" aria-label="Legend">
+                    <li className="flex items-center gap-1.5">
+                      <svg width="28" height="8" aria-hidden>
+                        <line x1="0" y1="4" x2="28" y2="4" stroke={colors.current} strokeWidth="2.5" strokeDasharray="5 3.75" />
+                      </svg>
+                      Current
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <svg width="28" height="8" aria-hidden>
+                        <line x1="2" y1="4" x2="26" y2="4" stroke={colors.line} strokeWidth="3" strokeLinecap="round" />
+                      </svg>
+                      Preview
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <svg width="10" height="10" aria-hidden>
+                        <circle cx="5" cy="5" r="3.5" fill="none" stroke={colors.current} strokeWidth="1.25" />
+                      </svg>
+                      removed
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <svg width="10" height="10" aria-hidden>
+                        <circle cx="5" cy="5" r="4" fill={colors.line} stroke={colors.halo} strokeWidth="1" />
+                      </svg>
+                      added or moved
+                    </li>
+                  </ul>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={applyPending}>
+                      Apply
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={cancelPending} title="Cancel (Esc)">
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -365,10 +459,29 @@ export function Playground() {
                         .filter((c) => c.id !== choice && c.prob >= 0.005)
                         .slice(0, 4)
                         .map((c) => (
-                          <Button key={c.id} variant="outline" size="xs" className="h-auto max-w-full py-1 text-left whitespace-normal" onClick={() => pickChoice(c.id)} title={c.reasons.join(", ")}>
+                          <Button
+                            key={c.id}
+                            variant={pendingSource === "reading" && pendingReading?.choice === c.id && !pendingReading.override ? "default" : "outline"}
+                            aria-pressed={pendingSource === "reading" && pendingReading?.choice === c.id && !pendingReading.override}
+                            size="xs"
+                            className="h-auto max-w-full py-1 text-left whitespace-normal"
+                            onClick={() => pickChoice(c.id)}
+                            title={c.reasons.join(", ")}
+                          >
                             {c.label} · {c.prob < 0.01 ? "<1" : Math.round(c.prob * 100)}%
                           </Button>
                         ))}
+                    </div>
+                  ) : null}
+                  {pendingSource === "reading" ? (
+                    <div className="flex flex-wrap items-center gap-2 border border-dashed p-2">
+                      <span className="min-w-0 flex-1">Previewing on the map: {geo.pending?.label.replace(/^Read as /, "")}.</span>
+                      <Button size="xs" onClick={applyPending}>
+                        Apply
+                      </Button>
+                      <Button size="xs" variant="outline" onClick={cancelPending}>
+                        Cancel
+                      </Button>
                     </div>
                   ) : null}
                   {polylineInput && g ? (
@@ -545,6 +658,12 @@ export function Playground() {
                 {["points", "fix", "compact", "stats", "export"].map((t) => (
                   <TabsTrigger key={t} value={t} className="flex-none capitalize">
                     {t === "fix" ? "Fix" : t === "compact" ? "Compact" : t}
+                    {pendingSource === t ? (
+                      <>
+                        <span className="ml-1.5 size-1.5 rounded-full bg-primary" aria-hidden />
+                        <span className="sr-only"> (change pending)</span>
+                      </>
+                    ) : null}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -552,10 +671,10 @@ export function Playground() {
                 <PointsPanel collection={geo.collection} selected={selected} onSelect={setSelected} hover={hover} onHover={setHover} onChange={(c) => geo.set(c, "table")} />
               </TabsContent>
               <TabsContent value="fix" className="mt-3">
-                <Suspense fallback={<Loading />}><FixPanel collection={geo.collection} precision={out.precision} onPreview={setGhost} onApply={(c) => { setGhost(null); geo.set(c, "tool") }} /></Suspense>
+                <Suspense fallback={<Loading />}><FixPanel key={`fix-${epoch}`} collection={geo.collection} precision={out.precision} pending={pendingSource === "fix"} onPreview={previewFix} onApply={applyPending} onCancel={cancelPending} /></Suspense>
               </TabsContent>
               <TabsContent value="compact" className="mt-3">
-                <Suspense fallback={<Loading />}><CompactPanel collection={geo.collection} out={out} onPreview={setGhost} onApply={(c) => { setGhost(null); geo.set(c, "tool") }} /></Suspense>
+                <Suspense fallback={<Loading />}><CompactPanel key={`compact-${epoch}`} collection={geo.collection} out={out} pending={pendingSource === "compact"} onPreview={previewCompact} onApply={applyPending} onCancel={cancelPending} /></Suspense>
               </TabsContent>
               <TabsContent value="stats" className="mt-3">
                 <Suspense fallback={<Loading />}><StatsPanel collection={geo.collection} out={out} /></Suspense>

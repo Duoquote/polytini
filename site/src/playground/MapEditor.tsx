@@ -11,15 +11,13 @@ import { useDark } from "@/lib/use-dark"
 import { allLines, type Collection, type Line, type Pt } from "./model"
 import { inRange } from "./geo"
 import type { Origin } from "./state"
+import { MAP_COLORS } from "./colors"
 
 const STYLE = {
   light: "https://tiles.openfreemap.org/styles/positron",
   dark: "https://tiles.openfreemap.org/styles/dark",
 }
-const COLORS = {
-  light: { line: "#0e7490", ghost: "#94a3b8", hover: "#dc2626", halo: "#ffffff", static: "#b45309" },
-  dark: { line: "#22d3ee", ghost: "#64748b", hover: "#f87171", halo: "#0a0a0a", static: "#fbbf24" },
-}
+const COLORS = MAP_COLORS
 const PADDING = { top: 48, right: 48, bottom: 72, left: 48 }
 
 export type Hover = { line: number; index: number } | null
@@ -32,8 +30,8 @@ type Props = {
   origin: Origin
   /** Fit the view when this changes. */
   fitKey: number
-  /** Drawn faintly under the geometry: the original under a compaction, or a fix's preview. */
-  ghost: Collection | null
+  /** A pending change. While there is one, the map shows it over the current geometry and editing on the map pauses. */
+  preview: Collection | null
   hover: Hover
   selectedLine: number
   onChange: (c: Collection, commit: boolean) => void
@@ -59,6 +57,32 @@ function carryZ(before: Pt[], coords: number[][]): Pt[] {
     const near = same ?? before.reduce((best, p) => ((p[0] - c[1]) ** 2 + (p[1] - c[0]) ** 2 < (best[0] - c[1]) ** 2 + (best[1] - c[0]) ** 2 ? p : best), before[0])
     return [c[1], c[0], near?.[2] ?? 0]
   })
+}
+
+/**
+ * The points a preview removes (in the current geometry only) and adds or
+ * moves (in the preview only), compared at 1e-7 degrees.
+ */
+function marks(c: Collection, p: Collection) {
+  const key = (q: Pt) => Math.round(q[0] * 1e7) * 4e9 + Math.round(q[1] * 1e7)
+  const inC = new Set<number>()
+  const inP = new Set<number>()
+  for (const { line } of allLines(c)) for (const q of line.pts) inC.add(key(q))
+  for (const { line } of allLines(p)) for (const q of line.pts) inP.add(key(q))
+  const features: { type: "Feature"; properties: { kind: string }; geometry: { type: "Point"; coordinates: number[] } }[] = []
+  const add = (from: Collection, other: Set<number>, kind: string) => {
+    const seen = new Set<number>()
+    for (const { line } of allLines(from))
+      for (const q of line.pts) {
+        const k = key(q)
+        if (other.has(k) || seen.has(k) || !inRange(q) || features.length > 50000) continue
+        seen.add(k)
+        features.push({ type: "Feature", properties: { kind }, geometry: { type: "Point", coordinates: [r9(q[1]), r9(q[0])] } })
+      }
+  }
+  add(c, inP, "removed")
+  add(p, inC, "added")
+  return { type: "FeatureCollection" as const, features }
 }
 
 function geojsonOf(c: Collection | null, filter?: (l: Line) => boolean) {
@@ -92,6 +116,9 @@ export default function MapEditor(props: Props) {
   // True while load() fills terra-draw: its clear and add fire change
   // events that aren't edits.
   const loading = useRef(false)
+  // True while the map shows a pending change instead of terra-draw.
+  const previewing = useRef(false)
+  const previewFrame = useRef(0)
 
   useLayoutEffect(() => {
     latest.current = props
@@ -168,6 +195,44 @@ export default function MapEditor(props: Props) {
     return { features }
   }
 
+  const setSource = (id: string, data: Parameters<GeoJSONSource["setData"]>[0]) => (mapRef.current?.getSource(id) as GeoJSONSource | undefined)?.setData(data)
+
+  // Shows the pending change over the current geometry, or goes back to
+  // editing when there's none. terra-draw is emptied while a preview shows,
+  // so nothing can be edited on the map against a geometry that's about to change.
+  const showPreview = () => {
+    const { preview, collection } = latest.current
+    const empty = { type: "FeatureCollection" as const, features: [] }
+    if (preview) {
+      if (!previewing.current) {
+        previewing.current = true
+        // Bring the change into view when it's somewhere else, like a
+        // precision fix moving a line from latitude 525 to Berlin.
+        const map = mapRef.current
+        if (map) {
+          const bounds = map.getBounds()
+          const outside = allLines(preview).some(({ line }) => line.pts.some((p) => inRange(p) && !bounds.contains([p[1], p[0]])))
+          if (outside) fit({ features: [...collection.features, ...preview.features] })
+        }
+        loading.current = true
+        drawRef.current?.setMode("select")
+        drawRef.current?.clear()
+        loading.current = false
+        ids.current = new Map()
+        setModeState("select")
+        setSelectedId(null)
+        setSource("pg-static", empty)
+      }
+      setSource("pg-current", geojsonOf(collection))
+      setSource("pg-preview", geojsonOf(preview))
+      setSource("pg-marks", marks(collection, preview))
+    } else if (previewing.current) {
+      previewing.current = false
+      for (const id of ["pg-current", "pg-preview", "pg-marks"]) setSource(id, empty)
+      load(collection)
+    }
+  }
+
   const fit = (c: Collection) => {
     const map = mapRef.current
     if (!map) return
@@ -184,10 +249,16 @@ export default function MapEditor(props: Props) {
   const addLayers = (map: MapLibreMap) => {
     const c = loaded.current?.dark ? COLORS.dark : COLORS.light
     const empty = { type: "FeatureCollection" as const, features: [] }
-    map.addSource("pg-ghost", { type: "geojson", data: empty })
+    const lines: ["==", ["geometry-type"], string] = ["==", ["geometry-type"], "LineString"]
+    for (const id of ["pg-current", "pg-preview", "pg-marks"]) map.addSource(id, { type: "geojson", data: empty })
     map.addSource("pg-static", { type: "geojson", data: empty })
     map.addSource("pg-hover", { type: "geojson", data: empty })
-    map.addLayer({ id: "pg-ghost", type: "line", source: "pg-ghost", paint: { "line-color": c.ghost, "line-width": 3, "line-opacity": 0.6, "line-dasharray": [2, 1.5] } })
+    // Current: dashed and muted, underneath. Preview: solid accent on top.
+    map.addLayer({ id: "pg-current", type: "line", source: "pg-current", filter: lines, paint: { "line-color": c.current, "line-width": 2.5, "line-dasharray": [2, 1.5] } })
+    // Removed points: small hollow rings under the preview line, so thousands of them can't hide it; they fade in from zoom 9. Added or moved: filled accent dots on top.
+    map.addLayer({ id: "pg-removed", type: "circle", source: "pg-marks", filter: ["==", ["get", "kind"], "removed"], paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 1.5, 14, 3.5], "circle-stroke-opacity": ["interpolate", ["linear"], ["zoom"], 9, 0, 12, 1], "circle-color": "rgba(0,0,0,0)", "circle-stroke-color": c.current, "circle-stroke-width": 1.25 } })
+    map.addLayer({ id: "pg-preview", type: "line", source: "pg-preview", filter: lines, layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": c.line, "line-width": 3 } })
+    map.addLayer({ id: "pg-added", type: "circle", source: "pg-marks", filter: ["==", ["get", "kind"], "added"], paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 2, 14, 4], "circle-color": c.line, "circle-stroke-color": c.halo, "circle-stroke-width": 1 } })
     map.addLayer({ id: "pg-static", type: "line", source: "pg-static", paint: { "line-color": c.static, "line-width": 2 } })
     map.addLayer({ id: "pg-static-dots", type: "circle", source: "pg-static", filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 5, "circle-color": c.static, "circle-stroke-color": c.halo, "circle-stroke-width": 2 } })
     map.addLayer({ id: "pg-hover", type: "circle", source: "pg-hover", paint: { "circle-radius": 7, "circle-color": c.hover, "circle-stroke-color": c.halo, "circle-stroke-width": 2 } })
@@ -323,10 +394,11 @@ export default function MapEditor(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // The geometry changed somewhere other than the map: redraw it.
+  // The geometry changed somewhere other than the map: redraw it, unless a
+  // preview is showing (showPreview draws that).
   useEffect(() => {
     if (!ready || props.version === 0) return
-    if (latest.current.origin !== "map") load(props.collection)
+    if (latest.current.origin !== "map" && !latest.current.preview) load(props.collection)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.version, ready])
 
@@ -334,11 +406,14 @@ export default function MapEditor(props: Props) {
     if (ready) fit(latest.current.collection)
   }, [props.fitKey, ready])
 
+  // A pending change: once per frame, so dragging a slider over a big line
+  // draws the latest result and skips the ones in between.
   useEffect(() => {
-    const map = mapRef.current
-    if (!ready || !map) return
-    ;(map.getSource("pg-ghost") as GeoJSONSource | undefined)?.setData(geojsonOf(props.ghost))
-  }, [props.ghost, ready])
+    if (!ready) return
+    cancelAnimationFrame(previewFrame.current)
+    previewFrame.current = requestAnimationFrame(showPreview)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.preview, props.collection, ready])
 
   useEffect(() => {
     const map = mapRef.current
@@ -362,8 +437,9 @@ export default function MapEditor(props: Props) {
     map.once("style.load", async () => {
       addLayers(map)
       await startDraw(map)
-      load(latest.current.collection)
-      ;(map.getSource("pg-ghost") as GeoJSONSource | undefined)?.setData(geojsonOf(latest.current.ghost))
+      previewing.current = false
+      if (latest.current.preview) showPreview()
+      else load(latest.current.collection)
       setModeState("select")
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -382,7 +458,7 @@ export default function MapEditor(props: Props) {
       aria-pressed={mode === m}
       aria-label={label}
       title={label}
-      disabled={!ready}
+      disabled={!ready || !!props.preview}
       onClick={() => setMode(m)}
     >
       <Icon />
@@ -408,7 +484,7 @@ export default function MapEditor(props: Props) {
           variant="outline"
           aria-label="Delete the selected line"
           title="Delete the selected line"
-          disabled={!selectedId}
+          disabled={!selectedId || !!props.preview}
           onClick={() => {
             if (!selectedId || !drawRef.current) return
             drawRef.current.removeFeatures([selectedId])
@@ -423,7 +499,9 @@ export default function MapEditor(props: Props) {
           <ScanIcon />
         </Button>
         <span className="ml-auto hidden px-1 text-xs text-muted-foreground sm:block">
-          {mode === "select"
+          {props.preview
+            ? "Previewing a change. Apply or cancel it to edit on the map."
+            : mode === "select"
             ? "Click a line to edit. Drag points, drag a midpoint to add one, right-click a point to delete it."
             : mode === "linestring"
               ? "Click to add points, click the last one again to finish."
