@@ -1,6 +1,7 @@
 // Byte-buffer paths through TextEncoder/TextDecoder, for runtimes without
-// Node's Buffer where those are fast: Deno. Measured on Deno 2.5 with the
-// benchmark fixtures (see "Platform notes" in the README):
+// Node's Buffer where those are fast: Deno, Workers and, for encoding,
+// browsers. Measured on Deno 2.5, workerd and Chrome 157 with the benchmark
+// fixtures (docs/platforms.md):
 //
 // - Decode: encodeInto copies the string into a reused Uint8Array, then the
 //   loop reads bytes instead of calling charCodeAt. 20 to 35% faster from 100
@@ -10,10 +11,27 @@
 // - Encode: bytes into a reused buffer, then one TextDecoder call. 30 to 60%
 //   faster from 1,000 points up, but the call has a fixed cost that made
 //   lines of a few hundred points slower than the core's string building, so
-//   it starts at 512 points.
+//   it starts at 512 points. Both the cost and the best decoder depend on the
+//   runtime, so an entry can change them (tune below; deno.js does).
 import { opts, st, LIMIT, slowDecode, slowEncode, decodeLoop, flip, encode as coreEncode, encodeFlat as coreEncodeFlat } from './core.js';
 
-const te = new TextEncoder(), td = new TextDecoder('latin1');
+const te = new TextEncoder();
+// The decoder that makes the string, and the number of points encode starts
+// using it at. These are the browser entry's: in Chrome 157 a UTF-8 decoder
+// was 5 to 6% slower than 'latin1' from 10,000 points up, and starting at
+// fewer points made the real-world lines 13% slower.
+let td = new TextDecoder('latin1'), min = 512;
+
+/**
+ * Sets the decoder and the switch point for every encode after it. The bytes
+ * are always ASCII, so any ASCII-compatible decoder gives the same string.
+ * Entries share this module, so a program that loads two of them gets the
+ * last one's choice in both; only the speed changes.
+ */
+export const tune = (decoder, points) => {
+  td = decoder;
+  min = points;
+};
 // Reused up to 1 MB, like the Buffer paths.
 let kept = new Uint8Array(1 << 14);
 const scratch = (n) => (n <= kept.length ? kept : n <= 1 << 20 ? (kept = new Uint8Array(n)) : new Uint8Array(n));
@@ -100,7 +118,7 @@ function encodeLoop(src, f, a, flat) {
 
 const encodeWith = (src, o, flat, core) => {
   // Short lines: the core's string building is faster than a TextDecoder call.
-  if (!(src?.length >= (flat ? 1024 : 512))) return core(src, o);
+  if (!(src?.length >= (flat ? 2 * min : min))) return core(src, o);
   const f = opts(o);
   return (st.dims == 2 && f <= 1e6 && (flat ? !(src.length % 2) : Array.isArray(src)) ? encodeLoop(src, f, +st.swap, flat) : null) ?? slowEncode(src, f, flat);
 };
