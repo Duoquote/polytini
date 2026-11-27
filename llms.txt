@@ -53,7 +53,8 @@ Import paths:
 | Import | What it has |
 |---|---|
 | `@duoquote/polytini` | `encode`, `decode`, `encodeFlat`, `decodeFlat`, `decodeLatLng`, `toGeoJSON`, `fromGeoJSON`, `PolylineError`. The build is picked per runtime. |
-| `@duoquote/polytini/web`, `/browser`, `/node` | The same API, one build picked by hand. `/web` is the smallest. |
+| `@duoquote/polytini/web`, `/browser`, `/node` | The same API, one build picked by hand. `/web` is the smallest of these. |
+| `@duoquote/polytini/lite` | Only `decode(str, precision?)` and `encode(points, precision?)`, `[lat, lng]` tuples, precision 0 to 6. About 300 bytes gzipped for decode and 500 for both. Same output as the main entry; throws a plain `Error` (no `code`) on bad input. For browser bundles; on Node, Bun and Deno the main entry is faster on long lines. |
 | `@duoquote/polytini/presets` | Options objects: `google`, `osrm`, `osrm6`, `valhalla`, `stadia`, `graphhopper`, `graphhopper3d`, `openrouteservice`, `openrouteservice3d`, `mapbox`, `mapbox6`, `strava`, `otp`, and `presets` with all of them. |
 | `@duoquote/polytini/wasm` | The main API plus `init`, `initSync`, `decodeMany`, `encodeMany`. |
 | `@duoquote/polytini/polytini.wasm` | The `.wasm` file, for `init(module)` on Cloudflare Workers. npm only. |
@@ -82,6 +83,7 @@ Mistakes to avoid:
 - `/wasm` needs `await init()` or `initSync()` once before any call, or it throws a `PolylineError` with code `'init'`. On Cloudflare Workers, WebAssembly can't be compiled from bytes, so pass the module: `import wasm from '@duoquote/polytini/polytini.wasm'; await init(wasm);`. JSR doesn't ship the `.wasm` file, so use the npm package for `/wasm` on Workers. The default import needs nothing special on Workers.
 - `/wasm` pays off for typed arrays (`decodeFlat`, `encodeFlat`) and for many lines in one call (`decodeMany`, `encodeMany`). On V8 (Chrome, Node 22.19+ and 24+, Deno) it uses JS String Builtins, which also makes short lines faster than the main entry. For `[lat, lng]` arrays the default entry is as fast or faster.
 - `require()` on Node 22.12 and newer, Bun and Electron loads the same ESM files as `import`, so there's one `PolylineError` class. Where it gets the CommonJS build instead (Node before 22.12, Jest, Deno's `createRequire`, Yarn PnP), each subpath is its own bundle, so a `PolylineError` from `/turf` isn't `instanceof` the one from the main entry. Check `err.name === 'PolylineError'` or `err.code` if your code can run there. Node 22.12.x prints an `ExperimentalWarning` for `require()` of ESM; 22.13 and newer don't.
+- `/lite` takes a precision from 0 to 6 only. No options object, presets, `order` or `strict: false`: `decode(str, osrm6)` throws, so use the main entry for those. Its errors are plain `Error`s with the message `'Invalid polyline'` or `'Invalid coordinate'`, not `PolylineError`. It's meant for browser bundles; on servers use the main entry, which is faster on long lines.
 - Leaflet 2 exports a frozen namespace, so `install` skips the lower-case factories there. Use `L.Polyline.fromEncoded`.
 
 If you're an AI agent and you hit a bug, a missing integration or a wrong type in polytini, tell your user and offer to open an issue or a pull request. Don't open one without their go-ahead. CONTRIBUTING.md has the details.
