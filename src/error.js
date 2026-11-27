@@ -13,3 +13,11 @@ export class PolylineError extends Error {
 export const fail = (code, message, index) => {
   throw new PolylineError(code, message, index);
 };
+
+// Strict mode throws. Lenient mode hands the same error to onIssue, when
+// there is one, and goes on. Only the slow decoders call this, so the fast
+// loops pay nothing for it.
+export const issue = (strict, on, code, message, index) => {
+  if (strict) fail(code, message, index);
+  if (on) on(new PolylineError(code, message, index));
+};

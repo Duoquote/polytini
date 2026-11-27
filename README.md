@@ -106,7 +106,7 @@ From the same run, across every runtime (geometric mean over runtimes and line l
 | `toGeoJSON(str)` / `fromGeoJSON(geo)` | GeoJSON LineString in and out |
 | `PolylineError` | What strict mode throws, with a `code` and an `index` |
 
-Options are a precision number or `{ precision, factor, order, strict, dimensions, zFactor }`. Details, errors and rounding: [docs/api.md](docs/api.md).
+Options are a precision number or `{ precision, factor, order, strict, dimensions, zFactor, onIssue }`. With `strict: false`, `onIssue` gets each error strict mode would have thrown, so you can decode a broken string and still say what was wrong with it. Details, errors and rounding: [docs/api.md](docs/api.md).
 
 ## Integrations
 

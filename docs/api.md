@@ -22,6 +22,7 @@ Options are a number (the precision) or an object:
 - `factor`: multiply by this instead of `10 ** precision`.
 - `order`: `'latlng'` (default) or `'lnglat'`. The string itself always stores latitude first; this only changes the tuples you pass in and get back.
 - `strict`: default `true`. See below.
+- `onIssue`: with `strict: false`, a function that gets each error strict mode would have thrown. See [below](#reporting-what-lenient-mode-skipped).
 - `dimensions`: values per point, 1 to 16. Default 2. GraphHopper puts elevation third.
 - `zFactor`: the factor for the third and later values, like GraphHopper's elevation multiplier of 100.
 
@@ -44,6 +45,25 @@ decode('_p~iF~ps|U_ulLnnq', { strict: false }); // [[38.5, -120.2]]
 ```
 
 With `strict: false` it never throws on bad data: decode skips invalid characters and drops an incomplete last point, and encode treats missing or non-finite coordinates as 0.
+
+### Reporting what lenient mode skipped
+
+`onIssue` tells you what `strict: false` skipped over, so you can decode a broken string and still say what was wrong with it, without decoding it twice:
+
+```js
+const issues = [];
+decode('_p~iF~ps|U_ul LnnqC_mqNvxq`', { strict: false, onIssue: (e) => issues.push(e) });
+// [[38.5, -120.2], [40.7, -120.95]]
+// issues: PolylineError 'char' at 13, then 'truncated' at 27
+```
+
+It gets a `PolylineError`, created and not thrown, for each problem: every invalid character, every value past 2^53 (once, at the character where it passes), and a string that ends inside a value or a point (once, at the end). The first one is exactly the error strict mode throws for that input: the same code, index and message. Later ones have their index in the input as it is, not in what's left after skipping. Usually there's just one.
+
+Decoding goes on after `onIssue` returns, and the output is the same as `strict: false` without it. To stop at the first problem, throw from it; decode then throws your error. With `strict: true` it's never called, and encode doesn't call it.
+
+Every decoder that takes `strict` takes it: `decode`, `decodeFlat`, `decodeLatLng`, `toGeoJSON` and the presets on every entry, `/wasm` (`decodeMany` reports each line's issues with the index in that line), the integrations that decode, `/stream` (the index is in the whole input, wherever the chunks were cut, and the line decoders add the 1-based `line`) and `/flexible`, which now takes `{ strict: false, onIssue }` too. Its header is always strict, because nothing after it can be read without it.
+
+It costs nothing when you don't use it: only the slow decoder that already handles bad input reads it, so decoding valid input runs the same code as before. In paired runs against 0.1.7 the difference stayed inside the noise ([CHANGELOG.md](../CHANGELOG.md) has the numbers). `import { decode }` grew by 50 bytes gzipped.
 
 I made strict the default because it's cheap: on 10-point lines the checks measured 0 to 4%, and nothing I could separate from the noise on longer ones. The decoder ORs every character code into one integer and checks it once at the end, and the encoder's range check also catches NaN. Most other libraries silently return a wrong last point for a truncated string; see `npm run behavior` in the benchmark repo.
 

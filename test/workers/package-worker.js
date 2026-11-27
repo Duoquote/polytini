@@ -73,6 +73,10 @@ async function run() {
   check('flexible: encode', flexible.encode({ polyline: HERE_POINTS }) === HERE);
   check('flexible: header', flexible.header(HERE).precision === 5);
 
+  const issues = [];
+  polytini.decode(GOOGLE + '!', { strict: false, onIssue: (e) => issues.push(e) });
+  check('default: onIssue', issues.length === 1 && issues[0] instanceof polytini.PolylineError && issues[0].index === GOOGLE.length);
+
   // A fetch body in small pieces, the way a Worker gets one from upstream.
   const body = (text, size) => new ReadableStream({ start(c) { const b = new TextEncoder().encode(text); for (let i = 0; i < b.length; i += size) c.enqueue(b.subarray(i, i + size)); c.close(); } });
   const batches = [];

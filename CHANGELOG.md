@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+`onIssue`: decode leniently and still find out what was wrong with the input. Strict output, strict errors and lenient output are the same as in 0.1.7.
+
+- `decode(str, { strict: false, onIssue(e) { ... } })` calls `onIssue` with a `PolylineError` for each problem lenient decoding skips: every invalid character, every value past 2^53 (once, where it passes), and a cut-off end. The first one is exactly the error strict mode throws for that input, with the same code, index and message. Decoding goes on after it; throw from it to stop. With `strict: true` it's never called. Docs: [docs/api.md](docs/api.md#reporting-what-lenient-mode-skipped).
+- It works in `decodeFlat`, `decodeLatLng`, `toGeoJSON` and the presets on every entry, in `/wasm` (`decodeMany` reports each line's issues), in the integrations that decode (Google, MapLibre, Mapbox, Turf, deck.gl, Leaflet), and in `/stream`, where the index is in the whole input wherever the chunks were cut, and the line decoders add the line number as `line`.
+- `/flexible`'s `decode` takes `{ strict: false, onIssue }` too, which is new: it skips invalid characters and drops an incomplete last point like the Google-format decoders. A bad header still throws.
+- Only the slow decoder that already handles bad input reads it, so decoding valid input runs the same code as before. Paired runs with `bench/ab.js` against 0.1.7 are in the PR.
+- Gzipped, `import { decode }` grew by 50 bytes to 1,115, every export of the browser entry by 67 to 2,272, `/stream` by 97 to 3,721 (it also tags issues with the line) and `/flexible` by 65 to 2,101 for its new lenient mode.
+- `test/issues.test.js` checks on every entry, on random and broken inputs, that the first issue matches what strict mode throws, that the output is the same as without `onIssue`, and that strict mode never calls it. A differential run against the 0.1.7 sources on 60,000 random and broken inputs per runtime (Node, Bun, Deno) found no difference in any output or error.
+
 ## 0.1.8
 
 `@duoquote/polytini/lite`, a new entry for small browser bundles: `decode(str, precision?)` and `encode(points, precision?)` for `[lat, lng]` tuples at precision 0 to 6, and nothing else. No other entry changed.

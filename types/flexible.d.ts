@@ -97,8 +97,25 @@ export class PolylineError extends Error {
  */
 export function encode(input: EncodeInput | Points, options?: EncodeOptions): string;
 
+/** Options for decode. */
+export interface DecodeOptions {
+  /**
+   * Throw a PolylineError on malformed data. Default true. With false,
+   * decode skips invalid characters and drops an incomplete last point, like
+   * the Google-format decoders. A bad header always throws.
+   */
+  strict?: boolean;
+  /**
+   * With `strict: false`, called with each problem decoding skips over, as
+   * the PolylineError strict mode would throw for it (not thrown). The first
+   * one is exactly what strict mode throws. Decoding goes on after it
+   * returns; an error thrown from it stops decoding.
+   */
+  onIssue?(issue: PolylineError): void;
+}
+
 /** Decodes a line, with its header. The same result shape as @here/flexpolyline. */
-export function decode(str: string): DecodedResult;
+export function decode(str: string, options?: DecodeOptions): DecodedResult;
 
 /** Reads only the header. */
 export function header(str: string): Header;

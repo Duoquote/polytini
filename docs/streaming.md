@@ -18,7 +18,7 @@ import {
 } from '@duoquote/polytini/stream';
 ```
 
-They take the same options as `decode` and `encode` (`precision`, `factor`, `order`, `strict`, `dimensions`, `zFactor`, and the presets), plus `flat`.
+They take the same options as `decode` and `encode` (`precision`, `factor`, `order`, `strict`, `dimensions`, `zFactor`, `onIssue`, and the presets), plus `flat`.
 
 ## One long polyline in chunks
 
@@ -50,7 +50,7 @@ Strict mode works the way it does in `decode`:
 - Points from earlier chunks have already been returned by then. To use all of them or none, collect them and use them after `end()`.
 - After an error, every call throws it again. After `end()`, the decoder starts on a new polyline.
 
-With `strict: false` it never throws on bad data and gives what lenient `decode` gives: invalid characters are skipped and an incomplete last point is dropped.
+With `strict: false` it never throws on bad data and gives what lenient `decode` gives: invalid characters are skipped and an incomplete last point is dropped. `onIssue` gets the same issues `decode` reports for the whole string, with the index in the whole input, from the `write` that reads each one (the cut-off end from `end`). See [api.md](api.md#reporting-what-lenient-mode-skipped).
 
 Polylines don't contain whitespace, so a file that ends with a newline fails in strict mode, like `decode` does on it. For text with one polyline per line, use `DecodeLinesStream`.
 
@@ -82,7 +82,7 @@ for await (const route of lines) show(route.id, route.shape);
 
 `DecodeLinesStream` reads text or bytes with one polyline per line (`\n` or `\r\n`) and gives one result per line: its points, or with `field` the line's JSON object with that field decoded. Blank lines are skipped, and whitespace around a polyline is ignored. A line can be split between chunks anywhere.
 
-A bad line errors the stream by default, with the `PolylineError` (or `SyntaxError` for bad JSON) and the 1-based line number as `err.line`; `err.index` is the position in the line. With `errors: 'skip'` the line is left out and the error goes to `onError(err, line)`.
+A bad line errors the stream by default, with the `PolylineError` (or `SyntaxError` for bad JSON) and the 1-based line number as `err.line`; `err.index` is the position in the line. With `errors: 'skip'` the line is left out and the error goes to `onError(err, line)`. With `strict: false`, `onIssue` gets each line's issues with the index in the line and the line number as `line`.
 
 `EncodeLinesStream` goes the other way: one array of points (or one object, with `field`) per chunk in, one line of text out, with a `\n`.
 

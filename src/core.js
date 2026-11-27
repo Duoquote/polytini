@@ -7,15 +7,16 @@
 // and every kind of bad input. The slow functions do the same Number math
 // as Google's algorithm description, so both paths give identical output.
 
-import { PolylineError, fail } from './error.js';
+import { PolylineError, fail, issue } from './error.js';
 
-export { PolylineError, fail };
+export { PolylineError, fail, issue };
 
 // Options of the current call, set by opts() and read right after it, so the
 // hot paths never allocate. A plain object on purpose: writing exported
 // module-level `let` bindings cost about 30 ns per call on V8, this costs
-// nothing measurable.
-export const st = { swap: false, strict: true, dims: 2, zf: 1e5 };
+// nothing measurable. `on` is onIssue. It's only read when strict is false,
+// and only set together with it, so opts() doesn't have to reset it.
+export const st = { swap: false, strict: true, dims: 2, zf: 1e5, on: null };
 
 /**
  * Parses options, fills `st` and returns the factor. Kept tiny so V8 inlines
@@ -33,7 +34,7 @@ function objOpts(o) {
   const { order, dimensions: d } = o;
   if (order == 'lnglat') st.swap = true;
   else if (order != null && order != 'latlng') bad('order');
-  if (o.strict === false) st.strict = false;
+  if (o.strict === false) (st.strict = false), (st.on = o.onIssue);
   if (d != null) st.dims = d >= 1 && d <= 16 && d % 1 == 0 ? d : bad('dimensions');
   const f = o.factor != null ? num(o.factor) : pow(o.precision ?? 5);
   st.zf = o.zFactor != null ? num(o.zFactor) : f;
@@ -60,22 +61,26 @@ export const LIMIT = 536870912;
  * Exact decoder for any input. Returns points, or a flat Float64Array.
  * Strict mode throws on invalid characters, on a string that ends inside a
  * value or a point, and on values past 2^53. Otherwise it skips invalid
- * characters and drops an incomplete last point.
+ * characters and drops an incomplete last point, and passes each of those
+ * errors to onIssue: every invalid character, every value where it first
+ * passes 2^53, and the cut-off end. The first one is what strict mode throws.
  */
 export function slowDecode(str, f, flat) {
   if (typeof str != 'string') fail('input', 'Expected a string');
-  const { dims: d, strict, zf } = st, sw = st.swap && d > 1, sum = Array(d).fill(0), out = [];
-  let v = 0, scale = 1, a = 0, i = 0, c, p;
+  const { dims: d, strict, zf, on } = st, sw = st.swap && d > 1, sum = Array(d).fill(0), out = [];
+  let v = 0, scale = 1, a = 0, i = 0, c, p, w;
   for (; i < str.length; i++) {
     c = str.charCodeAt(i) - 63;
     // Outside 0..63 sets a bit above the low six.
     if (c & -64) {
-      if (strict) fail('char', 'Invalid character', i);
+      issue(strict, on, 'char', 'Invalid character', i);
       continue;
     }
+    w = v;
     v += (c & 31) * scale;
     scale *= 32;
-    if (v > 2 ** 53 && strict) fail('overflow', 'Value too large', i);
+    // Where the value first passes 2^53: it only grows until it ends.
+    if (v > 2 ** 53 && w <= 2 ** 53) issue(strict, on, 'overflow', 'Value too large', i);
     if (c < 32) {
       out.push((sum[a] += v % 2 ? -(v + 1) / 2 : v / 2) / (a < 2 ? f : zf));
       // lnglat: the two values just added change places.
@@ -86,7 +91,7 @@ export function slowDecode(str, f, flat) {
     }
   }
   // a is the number of values in an incomplete last point.
-  if (strict && (scale > 1 || a)) fail('truncated', 'Truncated', i);
+  if (scale > 1 || a) issue(strict, on, 'truncated', 'Truncated', i);
   out.length -= a;
   if (flat) return new Float64Array(out);
   const pts = [];

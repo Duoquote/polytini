@@ -26,7 +26,7 @@
 //                implementations
 //   'coordinate' encode got a missing or non-finite value (index = point)
 /* @ts-self-types="../types/flexible.d.ts" */
-import { PolylineError, fail } from './error.js';
+import { PolylineError, fail, issue } from './error.js';
 
 export { PolylineError };
 
@@ -99,11 +99,13 @@ export function header(str) {
 /**
  * Decodes to { precision, thirdDim, thirdDimPrecision, polyline }, the same
  * object @here/flexpolyline returns. Points are [lat, lng], or [lat, lng, z]
- * when the header has a third dimension.
+ * when the header has a third dimension. With `strict: false` it skips
+ * invalid characters and drops an incomplete last point, like the core, and
+ * passes each of those errors to `onIssue`. The header is always strict.
  */
-export function decode(str) {
+export function decode(str, options) {
   const r = head(str), h = r % 2048, i = (r - h) / 2048, t = (h >> 4) & 7, f = P[h & 15], fz = P[h >> 7];
-  return { precision: h & 15, thirdDim: t, thirdDimPrecision: h >> 7, polyline: decodeLoop(str, i, f, fz, t) || slowDecode(str, i, f, fz, t ? 3 : 2) };
+  return { precision: h & 15, thirdDim: t, thirdDimPrecision: h >> 7, polyline: decodeLoop(str, i, f, fz, t) || slowDecode(str, i, f, fz, t ? 3 : 2, options) };
 }
 
 // The fast loop, or null when the input needs slowDecode: an invalid
@@ -159,19 +161,23 @@ function decodeLoop(str, i, f, fz, three) {
 }
 
 /** Exact decoder with BigInt sums, which also reports errors. */
-function slowDecode(str, i, f, fz, d) {
-  const out = [], sum = [0n, 0n, 0n];
+function slowDecode(str, i, f, fz, d, o) {
+  const out = [], sum = [0n, 0n, 0n], strict = !o || o.strict !== false, on = !strict && o.onIssue;
   let pt = [], j = 0, v = 0n, s = 0n, k, c;
   for (; i < str.length; i++) {
     k = str.charCodeAt(i);
     c = k < 128 ? T[k] : 64;
-    if (c > 63) fail('char', 'Invalid character ' + JSON.stringify(str[i]), i);
-    v |= BigInt(c & 31) << s;
-    if (c & 32) {
-      if ((s += 5n) > 60n) fail('overflow', 'Value too large', i);
+    if (c > 63) {
+      issue(strict, on, 'char', 'Invalid character ' + JSON.stringify(str[i]), i);
       continue;
     }
-    if (v >> 64n) fail('overflow', 'Value too large', i);
+    v |= BigInt(c & 31) << s;
+    if (c & 32) {
+      // Once per value, where it first needs more than 64 bits.
+      if ((s += 5n) == 65n) issue(strict, on, 'overflow', 'Value too large', i);
+      continue;
+    }
+    if (s < 65n && v >> 64n) issue(strict, on, 'overflow', 'Value too large', i);
     sum[j] += v & 1n ? ~(v >> 1n) : v >> 1n;
     pt[j] = Number(sum[j]) / (j < 2 ? f : fz);
     if (++j == d) {
@@ -181,7 +187,7 @@ function slowDecode(str, i, f, fz, d) {
     }
     v = s = 0n;
   }
-  if (s || j) fail('truncated', 'Polyline ends inside a ' + (s ? 'value' : 'point'), i);
+  if (s || j) issue(strict, on, 'truncated', 'Polyline ends inside a ' + (s ? 'value' : 'point'), i);
   return out;
 }
 
