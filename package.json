@@ -168,6 +168,16 @@
       "types": "./types/flexible.d.ts",
       "default": "./src/flexible.js"
     },
+    "./stream": {
+      "bun": "./src/stream.js",
+      "module-sync": "./src/stream.js",
+      "require": {
+        "types": "./dist/types/stream.d.cts",
+        "default": "./dist/stream.cjs"
+      },
+      "types": "./types/stream.d.ts",
+      "default": "./src/stream.js"
+    },
     "./google": {
       "bun": "./src/google.js",
       "module-sync": "./src/google.js",
@@ -246,6 +256,7 @@
     "leaflet/package.json",
     "presets/package.json",
     "flexible/package.json",
+    "stream/package.json",
     "google/package.json",
     "maplibre/package.json",
     "mapbox/package.json",

@@ -4,6 +4,7 @@
 import * as polytini from '@duoquote/polytini';
 import { osrm6, graphhopper3d } from '@duoquote/polytini/presets';
 import * as flexible from '@duoquote/polytini/flexible';
+import * as stream from '@duoquote/polytini/stream';
 import { toFeature, fromGeoJSON } from '@duoquote/polytini/turf';
 import { polylineData, addPolylineLayer } from '@duoquote/polytini/maplibre';
 import { decodePath, encodePath } from '@duoquote/polytini/google';
@@ -64,6 +65,24 @@ async function run() {
   check('flexible: decode', close(flexible.decode(HERE).polyline, HERE_POINTS));
   check('flexible: encode', flexible.encode({ polyline: HERE_POINTS }) === HERE);
   check('flexible: header', flexible.header(HERE).precision === 5);
+
+  // A fetch body in small pieces, the way a Worker gets one from upstream.
+  const body = (text, size) => new ReadableStream({ start(c) { const b = new TextEncoder().encode(text); for (let i = 0; i < b.length; i += size) c.enqueue(b.subarray(i, i + size)); c.close(); } });
+  const batches = [];
+  for await (const b of body(GOOGLE, 3).pipeThrough(new stream.DecodeStream())) batches.push(...b);
+  check('stream: DecodeStream on a body', close(batches, POINTS));
+  const pieces = [];
+  for await (const s of body(GOOGLE, 5).pipeThrough(new stream.DecodeStream()).pipeThrough(new stream.EncodeStream())) pieces.push(s);
+  check('stream: DecodeStream into EncodeStream', pieces.join('') === GOOGLE);
+  const cut = await codeAsync(async () => { for await (const b of body(GOOGLE.slice(0, -1), 4).pipeThrough(new stream.DecodeStream())); });
+  check('stream: truncated body', cut instanceof stream.PolylineError && cut.code === 'truncated' && cut.index === GOOGLE.length - 1, cut?.message);
+  const lines = [];
+  for await (const x of body(`{"id":1,"g":"${GOOGLE}"}\n\n{"id":2,"g":"_p~iF~ps|U"}\n`, 7).pipeThrough(new stream.DecodeLinesStream({ field: 'g' }))) lines.push(x);
+  check('stream: DecodeLinesStream NDJSON', lines.length === 2 && close(lines[0].g, POINTS) && lines[1].id === 2);
+  let n = 0;
+  for await (const p of stream.decodeIterable(body(GOOGLE, 2))) n += p.length;
+  check('stream: decodeIterable', n === 6);
+  check('stream: one PolylineError class', stream.PolylineError === polytini.PolylineError);
 
   const f = toFeature(GOOGLE, { properties: { a: 1 } });
   check('turf: toFeature', f.geometry.coordinates[0].join() === '-120.2,38.5' && f.properties.a === 1);

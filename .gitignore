@@ -11,6 +11,7 @@ coverage/
 /leaflet/package.json
 /presets/package.json
 /flexible/package.json
+/stream/package.json
 /google/package.json
 /maplibre/package.json
 /mapbox/package.json

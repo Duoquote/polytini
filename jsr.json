@@ -18,6 +18,7 @@
     "./mapbox": "./src/mapbox.js",
     "./deckgl": "./src/deckgl.js",
     "./flexible": "./src/flexible.js",
+    "./stream": "./src/stream.js",
     "./cli": "./src/cli.js"
   },
   "publish": {
