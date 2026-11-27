@@ -1,6 +1,6 @@
 {
   "name": "@duoquote/polytini",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Encode and decode Google encoded polylines. Small, strict by default, with fast paths for Node, Bun and Deno.",
   "keywords": [
     "polyline",

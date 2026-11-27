@@ -9,7 +9,7 @@ deno run jsr:@duoquote/polytini/cli decode -p 6 -f geojson --file route.txt
 `pnpm dlx @duoquote/polytini` and `yarn dlx @duoquote/polytini` work too. The command is `polytini`:
 
 ```
-polytini 0.1.0: encode and decode Google encoded polylines
+polytini 0.1.1: encode and decode Google encoded polylines
 
 Usage:
   polytini encode [input] [options]
