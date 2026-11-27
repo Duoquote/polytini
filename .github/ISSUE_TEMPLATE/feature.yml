@@ -1,0 +1,21 @@
+name: Feature
+description: Something polytini should do that it doesn't.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: What you're trying to do
+      description: The task, not the API you have in mind. A short code example helps.
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you tried
+      description: How you do it today, with polytini or another library, and what's missing.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: If an AI agent suggested or wrote up this request, say so here.

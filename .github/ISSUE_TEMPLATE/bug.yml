@@ -1,0 +1,45 @@
+name: Bug
+description: Wrong output, an error that shouldn't happen, or a wrong type.
+labels: [bug]
+body:
+  - type: textarea
+    id: input
+    attributes:
+      label: Input
+      description: The polyline string or the points, and the options you passed. The smallest input that shows the problem is the most useful.
+      render: js
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What you expected, and where that comes from if you know (another library, PostGIS, the routing engine's docs).
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Got
+      description: What polytini returned or threw, with the error code if there is one.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: polytini version and import path
+      placeholder: 0.1.2, @duoquote/polytini/leaflet
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and version
+      placeholder: Node 24, Bun 1.4, Deno 2.5, Chrome 157, Cloudflare Workers
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: If an AI agent found or wrote up this bug, say so here.

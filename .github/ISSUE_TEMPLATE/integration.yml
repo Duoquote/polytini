@@ -1,0 +1,28 @@
+name: Integration request
+description: Support for a map library, routing engine or API that uses encoded polylines.
+labels: [integration]
+body:
+  - type: input
+    id: library
+    attributes:
+      label: Library or service, and version
+      placeholder: e.g. a routing API, a map renderer, a GIS tool
+    validations:
+      required: true
+  - type: textarea
+    id: format
+    attributes:
+      label: How it uses polylines
+      description: Precision (5, 6 or other), coordinate order, elevation or other extra values, and a link to its docs. A sample string with the points it stands for is ideal.
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: What you'd want back
+      description: The data shape the library takes, for example its geometry class, GeoJSON or typed arrays.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: If an AI agent suggested or wrote up this request, say so here.
