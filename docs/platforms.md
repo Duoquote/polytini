@@ -103,10 +103,10 @@ encodeMany(listOfLines);                        // string[]
 
 It has the main entry's whole API, plus `decodeMany` and `encodeMany`. Where it helps:
 
-- typed arrays on long lines (`decodeFlat`, `encodeFlat` from about 1,000 points)
+- typed arrays on long lines (`decodeFlat`, `encodeFlat` from about 1,000 points), and on V8 at every length (see [JS String Builtins](#js-string-builtins))
 - many lines in one call (`decodeMany`), where the cost of calling into WASM is paid once instead of per line
 
-Where it doesn't, it hands the call to the JavaScript core, because that measured faster on every runtime: decoding to `[lat, lng]` arrays (building the arrays is most of the work, and reading the numbers back out of WASM memory only added to it) and lines under about 30 points (calling in and moving the data costs more than the work).
+Where it doesn't, it hands the call to the JavaScript core, because that measured faster on every runtime: decoding to `[lat, lng]` arrays (building the arrays is most of the work, and reading the numbers back out of WASM memory only added to it) and, where the string builtins aren't used, lines under about 30 points (calling in and moving the data costs more than the work).
 
 What made the difference, from profiling each step on Node, Bun and Deno:
 
@@ -195,6 +195,34 @@ Speed, from one quick check on my machine, not on Cloudflare's servers: the same
 
 Encoding and `/wasm` are about the same as Node. Decoding was close to Node in some runs and up to 1.8 times slower in others, with nothing changed in between; I haven't found out why. It's not in the main benchmark.
 
+## Sending many lines
+
+Encoded polylines are already a compact format, and gzip on top still helps for a big batch. `CompressionStream('gzip')` works in every browser, Node, Bun, Deno and Workers, so neither side needs a library:
+
+```js
+import { encode } from '@duoquote/polytini';
+
+const gz = new Blob([JSON.stringify(lines.map((line) => encode(line)))]).stream().pipeThrough(new CompressionStream('gzip'));
+await fetch('/routes', { method: 'POST', body: await new Response(gz).blob(), headers: { 'Content-Encoding': 'gzip' } });
+
+// and back
+const res = await fetch('/routes.json.gz');
+const encoded = await new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).json();
+```
+
+Sizes of the benchmark's inputs in a few forms, raw and with gzip (level 6) and Brotli (level 5):
+
+| | raw | gzip | Brotli |
+|---|--:|--:|--:|
+| 1000 real-world lines (146,330 points), polylines as a JSON array | 457.9 KB | 311.9 KB | 313.5 KB |
+| the same coordinates as JSON numbers | 2,827.8 KB | 688.8 KB | 674.1 KB |
+| the same as Float64Array bytes | 2,286.4 KB | 1,050.9 KB | 706.9 KB |
+| the same as Int32 deltas at 1e5 | 1,143.2 KB | 389.5 KB | 362.3 KB |
+| one 10,000-point track, polyline | 26.6 KB | 12.7 KB | 12.2 KB |
+| the same as Int32 deltas at 1e5 | 78.1 KB | 14.4 KB | 13.3 KB |
+
+So gzipped polylines are the smallest of these, smaller even than the binary forms with Brotli. Brotli gains almost nothing over gzip on polylines, and `CompressionStream` only has it on Node, Bun and Workers (not in Chrome 156 or Deno 2.5), so gzip is the one to use. If a server already compresses its responses, sending the polylines as they are gets the same result.
+
 ## Size
 
 Minified and gzipped with esbuild and zlib level 9, from `node scripts/size.js`, which CI also runs with a budget per entry:
@@ -207,7 +235,7 @@ Minified and gzipped with esbuild and zlib level 9, from `node scripts/size.js`,
 | node | 5378 B | 2621 B |
 | bun | 5378 B | 2621 B |
 | deno | 5497 B | 2515 B |
-| wasm (JS glue + inlined .wasm) | 9414 B | 4550 B |
+| wasm (JS glue + both inlined modules) | 12676 B | 5879 B |
 | leaflet | 4039 B | 1989 B |
 | turf | 4803 B | 2233 B |
 | presets | 818 B | 284 B |
@@ -219,7 +247,7 @@ Minified and gzipped with esbuild and zlib level 9, from `node scripts/size.js`,
 | deckgl | 4129 B | 2039 B |
 | cli | 8074 B | 3839 B |
 
-polytini is bigger than most polyline libraries, which are about 0.6 KB gzipped. The extra goes into strict-mode errors, the exact slow path for precision 7 and up, objects, dimensions and both orders. The browser entry adds 278 bytes over the minimal web build for its TextDecoder encode; import `@duoquote/polytini/web` if you'd rather have the smaller one. The WASM entry is the biggest because it carries both the module and the JS core it hands short lines and `[lat, lng]` decoding to.
+polytini is bigger than most polyline libraries, which are about 0.6 KB gzipped. The extra goes into strict-mode errors, the exact slow path for precision 7 and up, objects, dimensions and both orders. The browser entry adds 278 bytes over the minimal web build for its TextDecoder encode; import `@duoquote/polytini/web` if you'd rather have the smaller one. The WASM entry is the biggest because it carries both modules and the JS core it hands `[lat, lng]` decoding and anything unusual to. The string-builtins module added about 1.3 KB gzipped to it in 0.1.5.
 
 ## Speed
 

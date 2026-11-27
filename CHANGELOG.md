@@ -23,6 +23,12 @@ Fixed:
 - `/wasm` finds Node's and Bun's `latin1Slice` without naming their `Buffer` class, so esm.sh stops adding its 8,772-byte (gzipped) `Buffer` polyfill to it. Encoding speed is the same: 0.99 to 1.01 on Node 24 and Bun in paired runs. It costs 30 bytes.
 - `/wasm` turns its inlined base64 into bytes with `Uint8Array.fromBase64` where the runtime has it, and a plain loop over `atob` where it doesn't (Node 24). The first `initSync()` in a fresh process went from 0.60 to 0.51 ms on Node 26, 0.63 to 0.51 in Deno, 2.81 to 2.36 on Bun, and 0.62 to 0.51 on Node 24 with the loop (medians of 15). 38 bytes.
 
+Docs:
+
+- CDNs: jsDelivr needs `/+esm` (its bare URL fails for `import`), with esm.sh and unpkg URLs next to it, and the `<script>` tag for the IIFE. In [docs/platforms.md](docs/platforms.md#cdns), and one line in the README.
+- Sending many lines: `CompressionStream('gzip')` on encoded polylines, with sizes. Gzip took the 1000 real-world lines from 457.9 to 311.9 KB and a 10,000-point track from 26.6 to 12.7 KB, smaller than the coordinates as JSON, Float64Array or Int32 deltas, even with Brotli. In [docs/platforms.md](docs/platforms.md#sending-many-lines).
+- The export conditions, the tool matrix and the Node 22.12.x `ExperimentalWarning` in [docs/platforms.md](docs/platforms.md#module-formats-and-tools); docs/api.md, docs/integrations.md and llms.txt point there.
+
 ## 0.1.4
 
 Faster, with the same output. The numbers are paired before and after runs with `bench/ab.js`; the table is in [docs/platforms.md](docs/platforms.md#what-changed-after-013).
