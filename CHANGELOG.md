@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.8
 
 `@duoquote/polytini/lite`, a new entry for small browser bundles: `decode(str, precision?)` and `encode(points, precision?)` for `[lat, lng]` tuples at precision 0 to 6, and nothing else. No other entry changed.
 
