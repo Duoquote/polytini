@@ -20,7 +20,7 @@ export const entries = [
   { name: 'node', file: 'src/node.js', platform: 'node', budget: 2700 },
   { name: 'bun', file: 'src/bun.js', platform: 'node', budget: 2700 },
   { name: 'deno', file: 'src/deno.js', platform: 'browser', budget: 2570 },
-  { name: 'wasm (JS glue + inlined .wasm)', file: 'src/wasm.js', platform: 'browser', budget: 4550 },
+  { name: 'wasm (JS glue + inlined .wasm)', file: 'src/wasm.js', platform: 'browser', budget: 4740 },
   { name: 'leaflet', file: 'src/leaflet.js', platform: 'browser', budget: 2060 },
   { name: 'turf', file: 'src/turf.js', platform: 'browser', budget: 2320 },
   { name: 'presets', file: 'src/presets.js', platform: 'browser', budget: 300 },

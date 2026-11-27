@@ -20,7 +20,9 @@ let ex, mem, u8, f64, u32, input, size = 0;
 // Deno has a global Buffer too, but its latin1Slice is a JS polyfill that
 // made encoding 2 times slower there than TextDecoder.
 const latin1Slice = !globalThis.Deno && globalThis.Buffer?.prototype.latin1Slice;
-const te = new TextEncoder(), td = new TextDecoder('latin1');
+// In Deno a UTF-8 TextDecoder is faster than a latin1 one for these ASCII
+// bytes (encode 7 to 31% faster in paired runs); elsewhere latin1 is.
+const te = new TextEncoder(), td = new TextDecoder(globalThis.Deno ? 'utf-8' : 'latin1');
 
 const bin = () => Uint8Array.from(atob(bytes), (c) => c.charCodeAt(0));
 const ready = (instance) => {

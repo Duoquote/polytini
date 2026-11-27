@@ -1,12 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.1.4
 
 Faster, with the same output. The numbers are paired before and after runs with `bench/ab.js`; the table is in [docs/platforms.md](docs/platforms.md#what-changed-after-013).
 
 - Short lines, when you pass a precision or options: `10 ** precision` was computed on every such call, and it's a table lookup now. A plain `decode(str)` never computed it and is as fast as before. Decoding 10 points got 30% faster on Node 22, 18% on Node 24, 16% on Node 26, 13% in Deno and 17% in Chrome. Encoding 10 points got 33%, 17%, 12%, 8% and 9% faster. Bun didn't change.
 - Node and Bun: the decoder copies the string with `utf8Write` instead of `ucs2Write`. Lines of 100 to 1,000 points decode 10 to 15% faster on Node 22 and 26 and 6 to 8% on Bun. Node 24 stayed about the same.
 - Deno: encoding makes its string with a UTF-8 `TextDecoder` instead of a `'latin1'` one, and from 16 points instead of 512. 44% faster at 100 points, 10 to 12% from 1,000 points up, 7% on the real-world lines.
+- `/wasm` in Deno: the glue makes encoded strings with a UTF-8 `TextDecoder` too. Encoding 100 points got 25% faster and the real-world lines 15% faster (paired runs, 8 of 8 rounds); other runtimes take the same path as before. The wasm entry's size budget went from 4550 to 4740 bytes for it (now 4561).
 - `bench/ab.js`: a paired A/B benchmark for changes to the codec, with a confidence interval. AGENTS.md says how to use it.
 - More tests for the byte-buffer paths: characters outside ASCII anywhere in a long string, and every length around the points where an entry switches paths.
 
