@@ -83,6 +83,25 @@ test("wasm: where bytes can't be compiled, init says to pass the module", async 
   eq(w.decodeMany([google]).coords[0], 38.5);
 });
 
+// The inlined bytes go through Uint8Array.fromBase64 where it exists and a
+// plain atob loop where it doesn't (Node 24); both have to give the module.
+test('wasm: init works with and without Uint8Array.fromBase64', async () => {
+  const had = Object.getOwnPropertyDescriptor(Uint8Array, 'fromBase64');
+  try {
+    delete Uint8Array.fromBase64;
+    const a = await fresh();
+    a.initSync();
+    eq(a.encodeMany([pts]), [google]);
+    Uint8Array.fromBase64 = had?.value ?? ((b) => Uint8Array.from(atob(b), (c) => c.charCodeAt(0)));
+    const b = await fresh();
+    await b.init();
+    eq(b.decodeMany([google]).coords[0], 38.5);
+  } finally {
+    if (had) Object.defineProperty(Uint8Array, 'fromBase64', had);
+    else delete Uint8Array.fromBase64;
+  }
+});
+
 test('wasm: bad bytes from the caller throw their own error', async () => {
   const w = await fresh();
   let err;

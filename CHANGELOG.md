@@ -13,6 +13,7 @@ Packaging: nothing removed, the CommonJS build stays. Checked with `test/tools/m
 - CI runs the cheap half of the tool matrix (Jest, Parcel, Metro, TypeScript, Node, the IIFE) on every push.
 
 - `/wasm` finds Node's and Bun's `latin1Slice` without naming their `Buffer` class, so esm.sh stops adding its 8,772-byte (gzipped) `Buffer` polyfill to it. Encoding speed is the same: 0.99 to 1.01 on Node 24 and Bun in paired runs. It costs 30 bytes.
+- `/wasm` turns its inlined base64 into bytes with `Uint8Array.fromBase64` where the runtime has it, and a plain loop over `atob` where it doesn't (Node 24). The first `initSync()` in a fresh process went from 0.60 to 0.51 ms on Node 26, 0.63 to 0.51 in Deno, 2.81 to 2.36 on Bun, and 0.62 to 0.51 on Node 24 with the loop (medians of 15). 38 bytes.
 
 ## 0.1.4
 
