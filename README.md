@@ -16,6 +16,8 @@
   <a href="LICENSE"><img alt="license: MIT" src="https://img.shields.io/github/license/Duoquote/polytini?style=flat"></a>
 </p>
 
+[Demo](https://duoquote.github.io/polytini/): try it in your browser, with a map, the strict mode and precision examples, and a benchmark you can run on your machine.
+
 polytini encodes and decodes [Google encoded polylines](https://developers.google.com/maps/documentation/utilities/polylinealgorithm), the strings Google Maps, OSRM, Valhalla, GraphHopper and Mapbox return for route geometry. It's strict by default, so a cut-off or corrupted string throws instead of drawing a wrong line. Node, Bun, Deno and browsers each get the code path that measured fastest there, and it has no dependencies. I wrote it while rebuilding [polyline-benchmark](https://github.com/Duoquote/polyline-benchmark), where it's compared with every other JavaScript polyline library.
 
 ## Install

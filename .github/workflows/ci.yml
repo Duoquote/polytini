@@ -4,8 +4,12 @@
 name: ci
 
 on:
+  # The demo site in site/ has its own workflow (pages.yml) and nothing in
+  # the package depends on it, so a change only there skips these jobs.
   push:
+    paths-ignore: ['site/**', '.github/workflows/pages.yml']
   pull_request:
+    paths-ignore: ['site/**', '.github/workflows/pages.yml']
   workflow_dispatch:
   workflow_call:
 
