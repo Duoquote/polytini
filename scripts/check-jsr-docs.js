@@ -9,9 +9,11 @@ const { exports } = JSON.parse(readFileSync(new URL('../jsr.json', import.meta.u
 const missing = [];
 for (const [name, file] of Object.entries(exports)) {
   const out = execFileSync('deno', ['doc', '--json', file], { cwd: new URL('..', import.meta.url), encoding: 'utf8', maxBuffer: 64 << 20, env: { ...process.env, NO_COLOR: '1' } });
-  const nodes = JSON.parse(out).nodes;
-  const doc = nodes.find((n) => n.kind === 'moduleDoc');
-  if (!doc?.jsDoc?.doc?.trim()) missing.push(`${name} (${file})`);
+  const { nodes } = JSON.parse(out);
+  // Deno 2.5 gives an array with a { kind: 'moduleDoc', jsDoc } node; newer
+  // versions (2.9) an object keyed by module, each with module_doc.
+  const doc = Array.isArray(nodes) ? nodes.find((n) => n.kind === 'moduleDoc')?.jsDoc?.doc : Object.values(nodes)[0]?.module_doc?.doc;
+  if (!doc?.trim()) missing.push(`${name} (${file})`);
 }
 if (missing.length) {
   console.error(`JSR exports without a module doc:\n- ${missing.join('\n- ')}`);
