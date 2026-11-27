@@ -4,11 +4,11 @@
 
 Each entry only has its own code where it measured faster than the portable core on that runtime. The numbers here are million points per second at 10,000 points from the 26 November 2026 benchmark run, each entry against `/web`:
 
-- Node (`src/node.js`): encoding writes bytes into a reused `Buffer` and turns them into a string with one `latin1Slice` call, instead of building the string piece by piece. That was 1.6 to 1.8 times faster (109 against 66 on Node 24). Decoding copies the string into a `Buffer` with `ucs2Write`, counts the points first so the output array is allocated once at its final size, then reads 16-bit values. That was 1 to 14% faster on Node 22 and 24 to 26, and 43% on Node 23, which I'd put partly down to noise. On Node 22 and 23 (V8 12), results over 32,768 points are built by appending instead, which was faster there and slower on newer V8.
-- Bun (`src/bun.js`): the same code as Node. The `Buffer` encoder was 2.3 times faster than the core (159 against 70). The `Buffer` decoder measured within 5% of the core in a direct comparison on Bun 1.4.3, ahead in some sizes and behind in others, so I didn't add a Bun-only decoder. In the benchmark run itself the core decoded faster in 4 of the 6 columns, but inside a 32% spread, so this one is still open.
-- Deno (`src/deno.js`): `node:buffer` was slower than the core under Deno, so this entry uses `TextEncoder.encodeInto` and `TextDecoder('latin1')` on a reused byte array instead. Encoding was 1.5 times faster (103 against 69), decoding about 6% (86 against 81). Lines under 512 points encode through the core, because the `TextDecoder` call has a fixed cost.
-- Browsers (`src/browser.js`): long lines encode through `TextDecoder` like in Deno, 1.6 times faster in Chrome (121 against 77). Decoding stays on the core's `charCodeAt` loop, because `encodeInto` made it slower in Chrome.
-- Cloudflare Workers (the `workerd` condition, `src/deno.js`): the Deno entry, since it uses nothing Deno-only. Wrangler picked `src/browser.js` before this condition existed, and the Deno entry decoded faster than that in every run I did in workerd. See [Workers](#cloudflare-workers).
+- Node (`src/node.js`): encoding writes bytes into a reused `Buffer` and turns them into a string with one `latin1Slice` call, instead of building the string piece by piece. That was 1.6 to 1.8 times faster (109 against 66 on Node 24). Decoding copies the string into a `Buffer`, counts the points first so the output array is allocated once at its final size, then reads the copy. That was 1 to 14% faster on Node 22 and 24 to 26, and 43% on Node 23, which I'd put partly down to noise. On Node 22 and 23 (V8 12), results over 32,768 points are built by appending instead, which was faster there and slower on newer V8. The copy was `ucs2Write` until 0.1.3 and is `utf8Write` now: see [what changed after 0.1.3](#what-changed-after-013).
+- Bun (`src/bun.js`): the same code as Node. The `Buffer` encoder was 2.3 times faster than the core (159 against 70). The `Buffer` decoder used to measure within 5% of the core on Bun 1.4.3, ahead in some sizes and behind in others. A paired run showed where: it was 6 to 9% slower at 40 and 100 points, even from 1,000 points, and 3 to 5% faster on the real-world lines. With `utf8Write` it's even with the core up to 100 points, 9% faster at 10,000 and 10% faster on the real-world lines, so Bun keeps the Node entry.
+- Deno (`src/deno.js`): `node:buffer` was slower than the core under Deno, so this entry uses `TextEncoder.encodeInto` and `TextDecoder` on a reused byte array instead. Encoding was 1.5 times faster (103 against 69), decoding about 6% (86 against 81). The decoder is `new TextDecoder()`, UTF-8, since the bytes are ASCII anyway: in Deno 2.5 it makes the string about 3 times as fast as the `'latin1'` one it used until 0.1.3. Lines under 16 points encode through the core, because the `TextDecoder` call has a fixed cost.
+- Browsers (`src/browser.js`): lines from 512 points encode through `TextDecoder('latin1')`, 1.6 times faster in Chrome (121 against 77). Chrome is the other way around from Deno: the UTF-8 decoder was 5 to 6% slower from 10,000 points up, and starting at fewer points made the real-world lines 13% slower. Decoding stays on the core's `charCodeAt` loop, because `encodeInto` made it slower in Chrome.
+- Cloudflare Workers (the `workerd` condition, `src/deno.js`): the Deno entry, since it uses nothing Deno-only. Wrangler picked `src/browser.js` before this condition existed, and the Deno entry decoded faster than that in every run I did in workerd. It keeps the 512-point switch for encoding: starting at 16 made the real-world lines 6% slower there. See [Workers](#cloudflare-workers).
 - Everything else (`src/web.js`): the core alone. It uses no Node, Bun or Deno globals.
 
 ## WASM
@@ -93,26 +93,59 @@ Minified and gzipped with esbuild and zlib level 9, from `node scripts/size.js`,
 
 | entry | minified | gzipped |
 |---|--:|--:|
-| default / web (everything) | 3972 B | 1966 B |
-| web, encode + decode only | 3511 B | 1759 B |
-| browser (the "browser" condition) | 4854 B | 2239 B |
-| node | 5324 B | 2593 B |
-| bun | 5324 B | 2593 B |
-| deno | 5387 B | 2463 B |
-| wasm (JS glue + inlined .wasm) | 9008 B | 4368 B |
-| leaflet | 4017 B | 1976 B |
-| turf | 4779 B | 2228 B |
+| default / web (everything) | 4012 B | 1984 B |
+| web, encode + decode only | 3533 B | 1770 B |
+| browser (the "browser" condition) | 4901 B | 2262 B |
+| node | 5378 B | 2621 B |
+| bun | 5378 B | 2621 B |
+| deno | 5497 B | 2515 B |
+| wasm (JS glue + inlined .wasm) | 9414 B | 4550 B |
+| leaflet | 4039 B | 1989 B |
+| turf | 4803 B | 2233 B |
 | presets | 818 B | 284 B |
 | flexible | 4175 B | 2036 B |
-| google | 3995 B | 1982 B |
+| google | 4017 B | 1989 B |
 | openlayers | 1994 B | 1064 B |
-| maplibre | 3107 B | 1619 B |
-| mapbox | 3105 B | 1620 B |
-| deckgl | 4107 B | 2026 B |
-| cli | 8052 B | 3827 B |
+| maplibre | 3131 B | 1634 B |
+| mapbox | 3127 B | 1635 B |
+| deckgl | 4129 B | 2039 B |
+| cli | 8074 B | 3839 B |
 
-polytini is bigger than most polyline libraries, which are about 0.6 KB gzipped. The extra goes into strict-mode errors, the exact slow path for precision 7 and up, objects, dimensions and both orders. The browser entry adds 273 bytes over the minimal web build for its TextDecoder encode; import `@duoquote/polytini/web` if you'd rather have the smaller one. The WASM entry is the biggest because it carries both the module and the JS core it hands short lines and `[lat, lng]` decoding to.
+polytini is bigger than most polyline libraries, which are about 0.6 KB gzipped. The extra goes into strict-mode errors, the exact slow path for precision 7 and up, objects, dimensions and both orders. The browser entry adds 278 bytes over the minimal web build for its TextDecoder encode; import `@duoquote/polytini/web` if you'd rather have the smaller one. The WASM entry is the biggest because it carries both the module and the JS core it hands short lines and `[lat, lng]` decoding to.
 
 ## Speed
 
 The best-at-what table is in the [README](../README.md#best-at-what). Every table, chart and round, for every runtime, is in the [benchmark repo](https://github.com/Duoquote/polyline-benchmark/blob/main/docs/results.md).
+
+## What changed after 0.1.3
+
+The benchmark repo's numbers move about 30% between rounds, so these come from `bench/ab.js` instead: the old and the new code on the same inputs, in alternating fresh processes pinned to 4 cores, 10 or 12 rounds, with a 95% confidence interval. A against itself gave about ±2 to 3% that way. Time per call, new divided by old, so 0.70 is 30% faster. "same" means the interval included 1.00. Every call passes the precision, like the benchmark does.
+
+| | Node 22 | Node 24 | Node 26 | Bun 1.4.3 | Deno 2.5 | Chrome 157 |
+|---|--:|--:|--:|--:|--:|--:|
+| decode, 10 points | 0.70 | 0.82 | 0.84 | same | 0.87 | 0.83 |
+| decode, 100 points | 0.89 | 0.91 | 0.89 | 0.94 | same | same |
+| decode, 1,000 points | 0.90 | same | 0.85 | 0.92 | | |
+| decode, real-world lines | same | same | 0.85 | 0.95 | same | same |
+| encode, 10 points | 0.67 | 0.83 | 0.88 | same | 0.92 | 0.91 |
+| encode, 100 points | | | | | 0.56 | |
+| encode, 1,000 points | | | | | 0.88 | same |
+| encode, real-world lines | same | same | same | same | 0.93 | same |
+
+Three changes are behind it:
+
+- `10 ** precision` was computed on every call that passes a precision or an options object, which took about 18 ns on Node 24 and 26 and 58 ns on Node 22. A plain `decode(str)` never computed it, and didn't change. The benchmark passes the precision to every library, so it's what the tables there show. That's 10 to 30% of a 10-point line, and it was most of the gap to `@mapbox/polyline` on short lines. At 10 points polytini went from 15% behind it to 16 to 22% ahead on Node 22, and from 22% behind to 5 to 8% behind on Node 24 and 26. It's a table of 16 numbers now. Bun never cared.
+- The `Buffer` decoder copies the string with `utf8Write` instead of `ucs2Write`. `ucs2Write` took 0.24 to 0.45 ns per character on Node 22 and 26, `utf8Write` 0.04, and the count pass reads 4 characters per step instead of 2. A character outside ASCII makes the byte count differ from the length, and that string goes to the slow path, so strict mode is the same.
+- Deno's `TextDecoder` label and switch point, described above.
+
+What I tried and dropped, with the same harness:
+
+- Appending with `push` on short lines: 3 to 5% faster at 10 points, but 8 to 26% slower from 100 points up in the portable core, on V8, Bun and Chrome. Doing it only under 64 characters still cost Chrome 11 to 14% at 100 and 1,000 points.
+- A branch-free writer for 1 and 2 character values in the byte encoders: 26 to 34% faster on the real-world lines on Node and Bun, and 7 to 29% slower on the GPS tracks. Same trade as in the decoder, so the branch stays.
+- One string concatenation per point instead of two in the core's encoder: 4 to 33% slower on Node 24.
+- `TextEncoder.encodeInto` for the Node decoder's copy: even with `utf8Write` except 4 to 9% slower at 40 points.
+- The core's loop for longer strings on Bun (256 or 1,024 characters instead of 64): 4 to 6% faster at 40 and 100 points, 2 to 9% slower on the real-world lines.
+- Counting 4 characters per step in the Deno decoder too: about 5% faster in a noisy run, but 62 bytes, which puts the entry over its budget.
+- `String.fromCharCode.apply` to make the string: 2 to 40 times slower than `latin1Slice` or `TextDecoder` from 100 characters up.
+
+Not done yet: `/wasm` on Deno still reads strings out with `TextDecoder('latin1')`. The UTF-8 one made `encode` and `encodeFlat` 7 to 31% faster there, but it's 10 bytes and the entry is at its budget.

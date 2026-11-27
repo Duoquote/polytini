@@ -116,6 +116,18 @@ for (const { name, api } of all) {
     throws(() => api.decode(ref.encode(cases(5)['unquantized input'], 5) + 'ő?'), 'char');
     throws(() => api.decode(ref.encode(cases(5)['unquantized input'], 5) + '_'), 'truncated');
     throws(() => api.decode(ref.encode(cases(5)['unquantized input'], 5) + '?'), 'truncated');
+    // Characters outside ASCII anywhere in a long string, where the buffer
+    // paths copy it as bytes: at the start, in the middle, a lone surrogate,
+    // and more of them than the scratch buffer holds.
+    const long = ref.encode(cases(5)['unquantized input'], 5);
+    eq(throws(() => api.decode('ő' + long), 'char').index, 0);
+    eq(throws(() => api.decode(long + 'é' + long), 'char').index, long.length);
+    eq(throws(() => api.decode(long + '�' + long), 'char').index, long.length);
+    eq(throws(() => api.decode(long + '😀'), 'char').index, long.length);
+    eq(throws(() => api.decode('ő'.repeat(40000)), 'char').index, 0);
+    eq(throws(() => api.decodeFlat('€'.repeat(40000)), 'char').index, 0);
+    // U+0151 is 0x51 "Q" in its low byte, and U+013F is 0x3f "?".
+    throws(() => api.decode(long + 'őĿ'), 'char');
     // More than 53 bits.
     throws(() => api.decode('~'.repeat(11) + '??'), 'overflow');
     throws(() => api.decode(42), 'input');
@@ -129,6 +141,11 @@ for (const { name, api } of all) {
     eq(api.decode('_p~iF ~ps|U\n', o), pts.slice(0, 1));
     eq(api.decodeFlat(google.slice(0, -1), o), pts.slice(0, 2).flat());
     eq(api.decode('', o), []);
+    // Long strings with characters outside ASCII: skipped like any other.
+    const line = cases(5)['unquantized input'], long = ref.encode(line, 5);
+    eq(api.decode('ő' + long + '�', o), ref.decode(long, 5));
+    eq(api.decodeFlat(long.slice(0, 100) + 'é€' + long.slice(100), o), ref.decode(long, 5).flat());
+    eq(api.decode('ő'.repeat(40000), o), []);
   });
 
   test(`${name}: values past 32 bits decode exactly`, () => {
@@ -169,6 +186,19 @@ for (const { name, api } of all) {
     }
     // Numeric strings are numbers, like in every other library.
     eq(api.encode([['38.5', '-120.2']]), ref.encode([[38.5, -120.2]], 5));
+  });
+
+  test(`${name}: every length from 0 to 40 and around 512 and 1024 points`, () => {
+    // The entries switch from string building to byte buffers at different
+    // lengths (16, 32, 512 and 1024 points), so check each side of all of them.
+    const walk = cases(5)['random walk (2000 points, long enough for every fast path)'];
+    for (const n of [...Array(41).keys(), 511, 512, 513, 1023, 1024, 1025]) {
+      const line = walk.slice(0, n), s = ref.encode(line, 5);
+      eq(api.encode(line), s, `encode ${n}`);
+      eq(api.encodeFlat(new Float64Array(line.flat())), s, `encodeFlat ${n}`);
+      eq(api.decode(s), ref.decode(s, 5), `decode ${n}`);
+      eq(api.decodeFlat(s), ref.decode(s, 5).flat(), `decodeFlat ${n}`);
+    }
   });
 
   test(`${name}: lenient encode`, () => {
@@ -225,7 +255,8 @@ for (const { name, api } of all) {
   });
 
   test(`${name}: big inputs go through every buffer size`, () => {
-    for (const n of [1, 15, 16, 31, 32, 33, 100, 5000, 70000]) {
+    // 110,000 points is over 1 MB as a string, past the kept scratch size.
+    for (const n of [1, 15, 16, 31, 32, 33, 100, 5000, 110000]) {
       const rand = rng(n), line = [];
       for (let i = 0; i < n; i++) line.push([q(rand() * 180 - 90, 5), q(rand() * 360 - 180, 5)]);
       const s = ref.encode(line, 5);

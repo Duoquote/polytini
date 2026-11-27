@@ -42,7 +42,13 @@ function objOpts(o) {
 
 const bad = (name) => fail('option', 'Invalid ' + name);
 const num = (f) => (f > 0 && f < 1 / 0 ? f : bad('factor'));
-const pow = (p) => (typeof p == 'number' && p >= 0 && p <= 15 && p % 1 == 0 ? 10 ** p : bad('precision'));
+// 10 ** p for every precision, computed once. `10 ** p` on every call that
+// passes a precision or options cost about 18 ns on V8 13 and 14 and 58 ns
+// on V8 12 (Node 22), which is 10 to 30% of decoding or encoding 10 points.
+// JavaScriptCore didn't care. Anything that isn't an integer from 0 to 15
+// misses the table.
+const POW = /* @__PURE__ */ Array.from({ length: 16 }, (_, p) => 10 ** p);
+const pow = (p) => (typeof p == 'number' ? POW[p] : 0) || bad('precision');
 
 // Scaled values below this fit the 32-bit math of the fast loops, deltas and
 // zigzag included. It covers every valid coordinate up to precision 6.

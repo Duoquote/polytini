@@ -2,12 +2,18 @@
 // was measured with the benchmark fixtures (see "Platform notes" in the
 // README):
 //
-// - Decode copies the string into a scratch buffer with `ucs2Write` and
-//   parses the Uint16Array. On V8, charCodeAt in a hot loop re-checks the
-//   string representation on every call, and the copy is close to a memcpy.
+// - Decode copies the string into a scratch buffer with `utf8Write` and
+//   parses the bytes. On V8, charCodeAt in a hot loop re-checks the string
+//   representation on every call, and the copy is close to a memcpy.
 //   `latin1Write` is a bit faster but keeps only the low byte, so U+0151
-//   would turn into a valid "Q". UTF-16 keeps strict mode exact.
-// - The decoder counts the points first (two characters per step, through
+//   would turn into a valid "Q". With UTF-8, any character outside ASCII
+//   makes the byte count differ from the length, and those strings go to the
+//   exact slow path, so strict mode stays exact. This used `ucs2Write`
+//   before, which copied 0.24 to 0.45 ns per character on Node 22 and 26
+//   where `utf8Write` takes 0.04. In paired runs the decoder got 4 to 16%
+//   faster on Node 22, 7 to 12% on Node 26, 3 to 11% on Bun, and stayed
+//   about the same on Node 24, where both copies are fast.
+// - The decoder counts the points first (four characters per step, through
 //   a Uint32Array view), so the output array is allocated at its exact size.
 //   Growing it with push, or trimming an oversized one, both measured slower.
 // - Encode writes bytes into a scratch buffer and makes the string with one
@@ -27,41 +33,40 @@ const KEEP = 1 << 20;
 // `grow`: above this many points, build the result by appending instead of
 // allocating it at its final size. See node.js for why.
 export function fast(Buffer, grow = Infinity) {
-  const ucs2Write = Buffer.prototype.ucs2Write, latin1Slice = Buffer.prototype.latin1Slice;
-  // The kept scratch buffer and its views. allocUnsafeSlow gives each buffer
-  // its own ArrayBuffer at offset 0, so the wider views are aligned.
-  let kept, k16, k32, u16;
-  const views = (buf) => [buf, new Uint16Array(buf.buffer, 0, buf.length >> 1), new Uint32Array(buf.buffer, 0, buf.length >> 2)];
-  [kept, k16, k32] = views(Buffer.allocUnsafeSlow(1 << 14));
-  const scratch = (bytes) => (bytes <= kept.length ? kept : bytes <= KEEP ? ([kept, k16, k32] = views(Buffer.allocUnsafeSlow(bytes)))[0] : Buffer.allocUnsafeSlow(bytes));
+  const utf8Write = Buffer.prototype.utf8Write, latin1Slice = Buffer.prototype.latin1Slice;
+  // The kept scratch buffer and its 32-bit view. allocUnsafeSlow gives each
+  // buffer its own ArrayBuffer at offset 0, so the wider view is aligned.
+  let kept, k32, u8;
+  const views = (buf) => [buf, new Uint32Array(buf.buffer, 0, buf.length >> 2)];
+  [kept, k32] = views(Buffer.allocUnsafeSlow(1 << 14));
+  const scratch = (bytes) => (bytes <= kept.length ? kept : bytes <= KEEP ? ([kept, k32] = views(Buffer.allocUnsafeSlow(bytes)))[0] : Buffer.allocUnsafeSlow(bytes));
 
-  // Copies str into scratch as UTF-16, points u16 at it, and returns the
-  // number of values.
+  // Copies str into scratch as bytes, points u8 at it, and returns the
+  // number of values, or -1 when the string isn't ASCII.
   function load(str, len) {
-    const buf = scratch((len + 4) * 2 + 8);
-    ucs2Write.call(buf, str, 0);
-    let u32 = k32;
-    if (buf == kept) u16 = k16;
-    else [, u16, u32] = views(buf);
+    const buf = scratch(len + 8);
+    // One byte per character, or the string isn't ASCII.
+    if (utf8Write.call(buf, str, 0) != len) return -1;
+    u8 = buf;
+    const u32 = buf == kept ? k32 : views(buf)[1];
     // Padding: '?' is a complete zero value, so a truncated string stops
     // inside the buffer and leaves the index past len.
-    u16[len] = u16[len + 1] = u16[len + 2] = 63;
+    buf[len] = buf[len + 1] = buf[len + 2] = 63;
     // Every value ends with one character below code 95. Count the others,
-    // which have bit 5 set after adding 1, two characters per word.
+    // which have bit 5 set after adding 1, four characters per word.
     let more = 0;
-    for (let k = 0, w = (len + 1) >> 1; k < w; k++) {
-      const y = ((u32[k] + 0x10001) >>> 5) & 0x10001;
-      more += (y & 0xffff) + (y >>> 16);
-    }
+    for (let k = 0, w = (len + 3) >> 2; k < w; k++) more += Math.imul(((u32[k] + 0x1010101) >>> 5) & 0x1010101, 0x1010101) >>> 24;
     return len - more;
   }
 
-  // decodeLoop over the UTF-16 copy, with an exactly sized output. Returns
+  // decodeLoop over the byte copy, with an exactly sized output. Returns
   // null for slowDecode. Tuples and flat output are separate loops here: one
   // shared loop with a per-point branch measured about 20% slower on
   // JavaScriptCore at 10,000 points.
   function big(str, f) {
-    const len = str.length, want = load(str, len) >> 1, b = u16, out = want > grow ? [] : Array(want);
+    const len = str.length, want = load(str, len) >> 1;
+    if (want < 0) return null;
+    const b = u8, out = want > grow ? [] : Array(want);
     let i = 0, n = 0, lat = 0, lng = 0, bad = 0, c, v, s;
     while (i < len) {
       c = b[i++] - 63;
@@ -89,7 +94,9 @@ export function fast(Buffer, grow = Infinity) {
   }
 
   function bigFlat(str, f, sw) {
-    const len = str.length, out = new Float64Array(load(str, len) & ~1), b = u16, a = +sw;
+    const len = str.length, want = load(str, len);
+    if (want < 0) return null;
+    const out = new Float64Array(want & ~1), b = u8, a = +sw;
     let i = 0, n = 0, lat = 0, lng = 0, bad = 0, c, v, s;
     while (i < len) {
       c = b[i++] - 63;
