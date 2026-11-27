@@ -236,8 +236,6 @@ What a bundle gets depends on what it imports, so the first rows are imports. Mi
 | `import { toGeoJSON }` | 2053 B | 1137 B |
 | `/web`, `import { encode }` | 2205 B | 1223 B |
 | `/web`, `import { decode, encode }` | 3374 B | 1692 B |
-| node entry, `import { decode }` | 2829 B | 1507 B |
-| node entry, `import { encode }` | 2445 B | 1399 B |
 
 Whole entries, every export:
 
@@ -245,8 +243,8 @@ Whole entries, every export:
 |---|--:|--:|
 | default / web | 4369 B | 1992 B |
 | browser (the "browser" condition) | 5243 B | 2205 B |
-| node | 5642 B | 2455 B |
-| bun | 5642 B | 2455 B |
+| node | 5679 B | 2607 B |
+| bun | 5679 B | 2607 B |
 | deno | 6276 B | 2503 B |
 | wasm (JS glue + both inlined modules) | 14239 B | 5585 B |
 | leaflet | 3880 B | 1910 B |
@@ -285,21 +283,24 @@ Gzipped, esbuild, from `node scripts/size.js` on each version:
 | `import { decode, encode }` | 2045 B | 1898 B |
 | `import { decodeLatLng }` | 1240 B | 1140 B |
 | `/web`, `import { decode, encode }` | 1770 B | 1692 B |
-| node entry, `import { decode }` | 2572 B | 1507 B |
-| node entry, `import { encode }` | 2572 B | 1399 B |
+| node, every export | 2621 B | 2607 B |
 | browser, every export | 2262 B | 2205 B |
 | `/web`, every export | 1984 B | 1992 B |
 | wasm, every export | 5879 B | 5585 B |
 
 Rollup and webpack, 0.1.5 to 0.1.6: `decode` 1046 to 1021 and 1134 to 1056, `encode` 1438 to 1433 and 1515 to 1508, both 1897 to 1907 and 2058 to 1967, every export 2297 to 2287 and 2408 to 2419.
 
-- The Node entry couldn't be tree-shaken at all: it built its functions with a factory call and destructured the result. Now `src/fast.js` exports plain functions.
 - `decode` and `decodeFlat` have their own fast loops, so decoding to arrays doesn't bring the Float64Array path. Both loops take the same parameters, declare their variables in the same order and use nothing from outside, so esbuild and terser name them alike and gzip finds the second in the first. A bundle with every export still grows by about 10 to 30 bytes for the second loop; that's the one place 0.1.6 is bigger.
-- The decoders for Node, Bun, Deno and Workers share the core's decode wrappers, which take the fast loop as a parameter. Encoding keeps one wrapper per entry: sharing it made the browser entry's `encodeFlat` 6% slower in Chrome, because the shared call site saw two loops.
+- The decoders for Deno and Workers share the core's decode wrappers, which take the fast loop as a parameter. Encoding keeps one wrapper per entry: sharing it made the browser entry's `encodeFlat` 6% slower in Chrome, because the shared call site saw two loops.
 - `src/text.js` creates its `TextEncoder`, `TextDecoder` and scratch buffer with `/* @__PURE__ */`, so a browser `encode` bundle drops the `TextEncoder` it never used. An unused `2 ** 29` is a plain number now, which esbuild can drop.
 - `/wasm` inlines its two modules as hex instead of base64. Two characters per byte keep the same bytes as the same text, so gzip finds what the two modules share: 1,018 against 1,320 bytes gzipped for both.
 
-Tried and dropped: short property names on the shared options object (9 bytes, but it touches every entry), a table of error messages keyed by code (bigger, since each message appears once per bundle), and checking `dimensions` through the precision table (15 bytes, but a BigInt there would throw a TypeError instead of a `PolylineError`).
+Tried and dropped:
+
+- A Node entry that bundlers can split. `src/node.js` makes its functions with one `fast(Buffer)` call, so a Node bundle gets all four whatever it imports: 2,560 bytes gzipped for `decode` alone. With `src/fast.js` as module-level functions it was 1,507, but decoding long lines got 2 to 3% slower on Node 24 (paired, 0 or 1 rounds of 10 faster: the real-world lines 1.030, 10,000 points 1.015 to 1.027). The factory measured the same as 0.1.4, so it stays.
+- Short property names on the shared options object: 9 bytes, but it touches every entry.
+- A table of error messages keyed by code: bigger, since each message appears once per bundle.
+- Checking `dimensions` through the precision table: 15 bytes, but a BigInt there would throw a TypeError instead of a `PolylineError`.
 
 ## Speed
 
