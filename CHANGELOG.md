@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.1.8
+
+`@duoquote/polytini/lite`, a new entry for small browser bundles: `decode(str, precision?)` and `encode(points, precision?)` for `[lat, lng]` tuples at precision 0 to 6, and nothing else. No other entry changed.
+
+Gzipped bytes, each import built the way the benchmark repo builds every library (esbuild / Rollup with terser / webpack 5):
+
+| import | /lite | default entry | @placemarkio/polyline | @googlemaps/polyline-codec |
+|---|--:|--:|--:|--:|
+| `decode` | 295 / 298 / 296 | 1,063 / 1,021 / 1,043 | 230 / 236 / 234 | 252 / 247 / 245 |
+| `encode` | 349 / 352 / 349 | 1,432 / 1,433 / 1,495 | 293 / 297 / 296 | 340 / 340 / 338 |
+| both | 503 / 512 / 509 | 1,895 / 1,907 / 1,954 | 424 / 432 / 432 | 472 / 481 / 479 |
+
+- It's the default entry's fast loops without the exact fallback paths and the options. For everything it accepts it gives exactly what the default entry gives, rounding and division included. Where it can't, it throws, so it never returns a different number.
+- Still strict about what would draw a wrong line: a cut-off string, a latitude without a longitude, a character outside `?` to `~`, a value too big for its 32-bit math, and NaN, Infinity or a missing value in encode. The errors are plain `Error`s (`'Invalid polyline'`, `'Invalid coordinate'`) without a code or an index. Decode-only with no checks at all would be 245 bytes; docs/api.md has the cost of each check.
+- What it leaves out: options objects and presets, `order`, `strict: false`, other dimensions, `{ lat, lng }` objects, precision 7 and up, and values past 2^29 units (536 degrees at precision 6). It throws on all of them. `null` in encode counts as 0, where the default entry throws.
+- Rounding adds 0.49999999999999994, the largest double below 0.5, and truncates. That's exact half away from zero, 0.49999999999999994 included, and 16 bytes smaller than the default entry's add-0.5-and-fix.
+- `dist/polytini-lite.iife.js` for a `<script>` tag, under the same global `polytini`.
+
+Speed, paired runs with `bench/ab.js --mode same` (10 rounds, pinned to 4 cores) and fresh contexts in Chrome 158. Time per call, lite over the other, so below 1 is lite faster; "same" means the 95% interval included 1.00.
+
+- Against the portable core (`/web`) on Node 24, Bun 1.4.3, Deno 2.5 and Chrome: decoding 0.93 to 1.03, encoding 0.82 to 0.95.
+- Against the browser entry in Chrome: the same for decoding, 0.84 to 0.93 for encoding, and 1.26 for encoding 10,000 points, where the browser entry uses `TextDecoder`.
+- Against the Node, Bun and Deno entries, which have `Buffer` and `TextEncoder` paths: within 1% or faster on 10-point decodes, 1.08 to 1.35 on long decodes, and up to 1.82 on encodes. On a server the main entry is the one to use.
+- Against `@placemarkio/polyline`, `@googlemaps/polyline-codec`, `@pirxpilot/google-polyline` and `google-polyline` on Node 24, Bun, Deno and Chrome: their time over lite's is 0.88 to 3.1 for decoding and 0.94 to 6.3 for encoding, and lite is faster than `@placemarkio/polyline` everywhere except two even Chrome cells. The exceptions are `@googlemaps/polyline-codec` decoding 10,000 points (6 to 12% faster) and 100 points in Chrome (9%), and `@pirxpilot/google-polyline` encoding 10 points on Bun (6%).
+- Smaller versions measured slower, so they're not what shipped: a do/while decoder with `push` (32 bytes smaller, 18 to 39% slower on Bun from 100 points), a loop per character in the encoder (52 bytes smaller, 39% slower on the real-world lines), and `10 ** precision` (16 bytes smaller, about 50 ns per call on Node 22).
+
+The tables are in [docs/api.md](docs/api.md#smaller-lite).
+
+Tests: `test/lite.test.js` checks lite against the default entry on the vectors, the PostGIS fixture, the real-world lines, random lines at precisions 0 to 6, random and cut strings, and random encode input, valid or not, and again in headless Chrome. It runs on Node, Bun, Deno and in workerd, `src/lite.js` is at 100% coverage, and the smoke test imports `/lite` with every package manager.
+
 ## 0.1.7
 
 Streaming, and a CLI whose documented commands work the same in bash, PowerShell and cmd. Nothing else changed: no other entry got bigger or slower, and every output is the same.

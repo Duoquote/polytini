@@ -4,6 +4,7 @@
 import * as polytini from '@duoquote/polytini';
 import { osrm6, graphhopper3d } from '@duoquote/polytini/presets';
 import * as flexible from '@duoquote/polytini/flexible';
+import * as lite from '@duoquote/polytini/lite';
 import * as stream from '@duoquote/polytini/stream';
 import { toFeature, fromGeoJSON } from '@duoquote/polytini/turf';
 import { polylineData, addPolylineLayer } from '@duoquote/polytini/maplibre';
@@ -61,6 +62,12 @@ async function run() {
 
   check('presets: osrm6', polytini.decode(polytini.encode([[-120.2, 38.5]], osrm6), osrm6)[0].join() === '-120.2,38.5');
   check('presets: graphhopper3d', close(polytini.decode(polytini.encode([[38.5, -120.2, 1234.5]], graphhopper3d), graphhopper3d), [[38.5, -120.2, 1234.5]]));
+
+  check('lite: encode', lite.encode(POINTS) === GOOGLE);
+  check('lite: decode', same(lite.decode(GOOGLE), polytini.decode(GOOGLE)));
+  check('lite: precision 6', lite.encode(POINTS, 6) === polytini.encode(POINTS, 6));
+  const liteCut = code(() => lite.decode(GOOGLE.slice(0, -1)));
+  check('lite: truncated throws', liteCut?.message === 'Invalid polyline', liteCut?.message);
 
   check('flexible: decode', close(flexible.decode(HERE).polyline, HERE_POINTS));
   check('flexible: encode', flexible.encode({ polyline: HERE_POINTS }) === HERE);

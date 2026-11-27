@@ -77,7 +77,7 @@ Without a bundler, import it from a CDN that serves ESM:
 
 On jsDelivr, keep the `/+esm`. The bare URL (`https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5`) serves `src/browser.js` as is, and its relative imports don't resolve from a URL without a trailing slash, so `import` fails. Subpaths work the same way: `https://esm.sh/@duoquote/polytini@0.1.5/wasm`, `https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5/wasm/+esm`, or the file itself from unpkg, `https://unpkg.com/@duoquote/polytini@0.1.5/src/wasm.js`.
 
-For a plain `<script>` tag, use the IIFE build. It sets a global `polytini` with the browser entry's functions:
+For a plain `<script>` tag, use the IIFE build. It sets a global `polytini` with the browser entry's functions (`dist/polytini-lite.iife.js` sets the same global with `/lite`'s two):
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@duoquote/polytini@0.1.5/dist/polytini.iife.js"></script>
@@ -236,6 +236,9 @@ What a bundle gets depends on what it imports, so the first rows are imports. Mi
 | `import { toGeoJSON }` | 2053 B | 1137 B |
 | `/web`, `import { encode }` | 2205 B | 1223 B |
 | `/web`, `import { decode, encode }` | 3374 B | 1692 B |
+| `/lite`, `import { decode }` | 478 B | 297 B |
+| `/lite`, `import { encode }` | 505 B | 349 B |
+| `/lite`, `import { decode, encode }` | 937 B | 508 B |
 
 Whole entries, every export:
 
@@ -271,8 +274,13 @@ The same imports with Rollup (node-resolve, commonjs, terser) and webpack 5 in p
 | every export | 2278 B | 2287 B | 2419 B |
 | `/web`, `import { decode, encode }` | 1686 B | 1604 B | 1687 B |
 | `/web`, every export | 2061 B | 2006 B | 2137 B |
+| `/lite`, `import { decode }` | 295 B | 298 B | 296 B |
+| `/lite`, `import { encode }` | 349 B | 352 B | 349 B |
+| `/lite`, `import { decode, encode }` | 503 B | 512 B | 509 B |
 
-polytini is still bigger than most polyline libraries. The small ES module ones are 230 to 340 bytes gzipped for decode or encode alone and 420 to 500 for both. The extra goes into strict-mode errors with an index, the exact slow path (precision 7 and up, huge values, `strict: false`, objects, other dimensions), both orders and the options, plus a fast loop next to each slow one. In a decode-only bundle the exact decoder is about 30% of the gzipped bytes and the options about 25%. The browser entry's `encode` adds about 210 bytes over `/web` for its TextDecoder path on long lines; import `@duoquote/polytini/web` if you'd rather have the smaller one. The WASM entry is the biggest because it carries both modules and the JS core it hands `[lat, lng]` decoding and anything unusual to.
+The main entry is still bigger than most polyline libraries. The small ES module ones are 230 to 340 bytes gzipped for decode or encode alone and 420 to 500 for both. The extra goes into strict-mode errors with an index, the exact slow path (precision 7 and up, huge values, `strict: false`, objects, other dimensions), both orders and the options, plus a fast loop next to each slow one. In a decode-only bundle the exact decoder is about 30% of the gzipped bytes and the options about 25%. The browser entry's `encode` adds about 210 bytes over `/web` for its TextDecoder path on long lines; import `@duoquote/polytini/web` if you'd rather have the smaller one. The WASM entry is the biggest because it carries both modules and the JS core it hands `[lat, lng]` decoding and anything unusual to.
+
+`/lite` is the other end: the fast loops alone, with a precision number from 0 to 6 and plain errors, at 295 bytes for decode and 503 for both, built the way the benchmark repo builds every library. That's a quarter of the default entry, and 12 to 79 bytes more than the small single-purpose libraries for both. The extra is the checks for truncated strings, invalid characters and values too big for its 32-bit math, and the shape of the default entry's loops, which is what keeps it as fast as the default entry in the browser and faster than those libraries. Smaller versions measured slower. Pick it for browser bundles; on a server the main entry is faster on long lines. [api.md](api.md#smaller-lite) has the numbers, what each check costs and what lite leaves out.
 
 ### What 0.1.6 changed
 

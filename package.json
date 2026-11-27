@@ -1,6 +1,6 @@
 {
   "name": "@duoquote/polytini",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Encode and decode Google encoded polylines, polyline6 included. Strict by default, no dependencies, with builds for Node, Bun, Deno, browsers and Cloudflare Workers, and adapters for Leaflet, MapLibre, Mapbox GL, OpenLayers, deck.gl, Turf and Google Maps.",
   "keywords": [
     "polyline",
@@ -128,6 +128,16 @@
       "default": "./src/wasm.js"
     },
     "./polytini.wasm": "./wasm/polytini.wasm",
+    "./lite": {
+      "bun": "./src/lite.js",
+      "module-sync": "./src/lite.js",
+      "require": {
+        "types": "./dist/types/lite.d.cts",
+        "default": "./dist/lite.cjs"
+      },
+      "types": "./types/lite.d.ts",
+      "default": "./src/lite.js"
+    },
     "./turf": {
       "bun": "./src/turf.js",
       "module-sync": "./src/turf.js",
@@ -252,6 +262,7 @@
     "node/package.json",
     "browser/package.json",
     "wasm/package.json",
+    "lite/package.json",
     "turf/package.json",
     "leaflet/package.json",
     "presets/package.json",
