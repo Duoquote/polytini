@@ -178,8 +178,9 @@ function run(str, f) {
 // from 10 points up on Node and in Chrome and Deno.
 const SHORT = 128;
 // Encode's cutoff, in characters like SHORT (4 per point). On Bun the core's
-// string building was 3.5 to 4.8 times slower than the module for 2 to 20
-// points, so after init (see ready) encode has no cutoff there.
+// string building is slow once the string is read, so after init (see
+// ready) encode has no cutoff there: 10 and 20 points took 0.24 to 0.27 of
+// the time for encode and encodeFlat.
 let enc = SHORT;
 // With string builtins, lines under this many points encode through them,
 // and encodeMany takes them when its lines average fewer. Longer lines go
@@ -196,7 +197,9 @@ const SB_ENCODE = g.Deno ? 256 : v12 ? Infinity : node ? 64 : 256, SB_MANY = SB_
 // than the other module's one call on the joined lines on Node 24 and 26,
 // and 13% faster in Chrome. Even on Node 22 and in Deno. On Node 24 and 26
 // that only held for long lines: for batches of lines under MANY_SHORT
-// characters on average, one call per line was 4 to 8% faster there too.
+// characters on average, one call per line took 0.64 to 0.70 of the time
+// there (1,000 lines of 20 points, 200 of 100), and the 1000 real-world lines
+// (463 characters on average) and 1,000-point lines stayed the same.
 const SB_DECODE_MANY = !node || v12, MANY_SHORT = 300;
 
 export function decodeFlat(str, o) {
@@ -258,7 +261,8 @@ export function encodeFlat(values, o) {
   room(n * 8 + n * 7 + 16);
   if (!(values instanceof Float64Array || values instanceof Float32Array)) {
     // On Bun a plain array is checked and copied in one loop: Float64Array.set
-    // from a plain array was 3.4 times slower than that on JavaScriptCore. On
+    // from a plain array is slow on JavaScriptCore, and this took 0.28 to 0.32
+    // of the time at 50 and 1,000 points and 0.46 on the real-world lines. On
     // Node 24 the loop was 12 to 20% slower than set, so V8 keeps set.
     if (g.Bun) {
       for (let i = 0, x, sw = +st.swap; i < n; i++) {

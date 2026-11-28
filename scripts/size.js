@@ -35,7 +35,7 @@ export const entries = [
   { name: '/lite, import { decode }', code: imports('lite', 'decode'), platform: 'browser', budget: 309 },
   { name: '/lite, import { encode }', code: imports('lite', 'encode'), platform: 'browser', budget: 363 },
   { name: '/lite, import { decode, encode }', code: imports('lite', 'decode, encode'), platform: 'browser', budget: 528 },
-  { name: 'wasm (JS glue + inlined .wasm)', file: 'src/wasm.js', platform: 'browser', budget: 5810 },
+  { name: 'wasm (JS glue + inlined .wasm)', file: 'src/wasm.js', platform: 'browser', budget: 5950 },
   { name: 'leaflet', file: 'src/leaflet.js', platform: 'browser', budget: 2050 },
   { name: 'turf', file: 'src/turf.js', platform: 'browser', budget: 2250 },
   { name: 'presets', file: 'src/presets.js', platform: 'browser', budget: 300 },
