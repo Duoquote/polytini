@@ -1,5 +1,89 @@
 # Changelog
 
+## 0.1.10
+
+Faster encoding on every entry and runtime, and faster `decodeLatLng` on Bun, Node 22 and Deno, the browser entry's encoder on lines of 100 points and more, and `/wasm` on Bun and for batches of short lines. Every string, number and error is the same as in 0.1.9.
+
+The changes come from two research passes, one on bit-level tricks and one on picking a code path per call. I measured each against 0.1.9 before shipping it, and a few didn't hold up the way the research said, so what shipped is a bit different from what it proposed:
+
+- Rounding. The fast encode loops round with `(x < 0 ? x - 0.49999999999999994 : x + 0.49999999999999994) | 0` instead of adding 0.5 and setting values under 0.5 to 0 afterwards. Adding the largest double below 0.5 and truncating is exact half away from zero for every value those loops take, 0.49999999999999994 included. `node scripts/exact-round.js` checks that at every half step below 2^29 (24.8 billion values, about 2 minutes on 6 cores), and `test/rounding.test.js` checks 226,158 of them on every entry. Two other spellings of the same numbers were slower: `/lite`'s `(x + (x < 0 ? -h : h)) | 0` made Firefox's string loop 20 to 30% slower at 100 to 500 points, and the number as an exported constant was a load from the module on every use in V8 (Chrome 9% slower at 100 points instead of faster).
+- The browser entry encodes through `TextDecoder` from 100 points instead of 512, except in Firefox, which keeps 512. Chrome 156 and WebKit were faster that way from 16 points, but a switch at 16 cost Chrome 4 to 5% at 10,000 points in a page that had encoded shorter lines first. Firefox 159 was slower below 40 points, and its real-world lines were 3 to 27% slower with the switch anywhere from 16 to 100 points, depending on what ran before. The check is on the user agent, like `/wasm`'s check for Chrome.
+- `decodeLatLng` builds the `{ lat, lng }` objects from `decodeFlat` for strings of 256 characters and more on Node 22 and Deno, and at every length on Bun. Node 24 and 26 keep the tuples: there it was even or 5% faster on long lines, and the extra check made 10 and 20 point lines 3% slower. The browser and web entries keep the tuples too, because the flat route was slower in Chrome, and so does workerd, where I haven't measured it.
+- `/wasm` on Bun: `encode` and `encodeFlat` go through the module at every length after `init()` (before, lines under 32 points went to the JS core, whose `+=` strings are slow once read on JavaScriptCore), and `encodeFlat` copies a plain array in its own loop instead of `Float64Array.prototype.set`.
+- `/wasm` on Node 24 and 26: `decodeMany` takes the string builtins, one call per line, when the lines average under 300 characters.
+- `/wasm` passes an empty imports object when it instantiates the string-builtins module. Bun 1.4.3 throws without one even for a module that has no imports. `/wasm` doesn't use that module on Bun, so this changes nothing yet.
+
+Speed, time per call against 0.1.9, so 0.80 is 20% faster. Paired runs, 10 rounds of fresh processes (or browser contexts) alternating old and new, pinned to 4 cores at high priority, the fastest of the samples per process, with 95% intervals; "same" means the interval included 1.00. 0.1.9 against itself first: within 1 to 2% per cell, up to 4% on a few. Node, Bun and Deno ran polytini's `bench/ab.js` on the main entry (node.js, or deno.js on Deno) with `--consume full`:
+
+| | Node 22 | Node 24 | Node 26 | Bun 1.4.3 | Deno 2.5 |
+|---|--:|--:|--:|--:|--:|
+| `encode`, 10 points | 0.96 | same | 0.99 | 0.96 | same |
+| `encode`, 100 points | 0.77 | 0.86 | 0.85 | 0.84 | 0.78 |
+| `encode`, 10,000 points | 0.77 | 0.83 | 0.84 | 0.89 | 0.92 |
+| `encode`, real-world lines | 0.96 | 0.97 | 0.98 | 0.99 | 0.98 |
+| `encodeFlat`, 10 points | same | 0.90 | 0.96 | 0.97 | same |
+| `encodeFlat`, 10,000 points | 0.89 | 0.79 | 0.92 | 0.86 | 0.89 |
+| `encodeFlat`, real-world lines | 0.99 | 0.93 | 0.96 | 0.98 | 0.93 |
+| `decodeLatLng`, 10 points | same | same | same | 0.80 | 1.03 |
+| `decodeLatLng`, 100 points | same | same | same | 0.56 | same |
+| `decodeLatLng`, 1,000 points | 0.82 to 0.93 | same | same | 0.57 | 0.89 to 0.91 |
+| `decodeLatLng`, real-world lines | 0.90 | same | same | 0.80 | 0.89 to 0.90 |
+
+Deno's `decodeLatLng` at 10 points was 1.03 in two runs, and one of the two intervals included 1.00 (0.996 to 1.065). An earlier version of the same wrapper measured 0.97 there, so it may be where the code landed rather than the check itself. I didn't chase it further.
+
+The browser entry, through the research repo's harness (the same pairing in fresh browser contexts) in Chrome 156, Firefox 159 and WebKit 27.2 from playwright-core, with every encoded string read afterwards:
+
+| | Chrome | Firefox | WebKit |
+|---|--:|--:|--:|
+| `encode`, 10 points | same | 0.97 | same |
+| `encode`, 50 points | 0.96 | 0.94 | 0.99 |
+| `encode`, 100 points | 0.44 | 0.92 | 0.19 |
+| `encode`, 500 points | 0.39 | same | 0.18 |
+| `encode`, 10,000 points | same | 0.93 | same |
+| `encode`, real-world lines | 0.85 | 0.97 | 0.55 |
+| `encodeFlat`, 100 points | 0.46 | 0.93 | 0.17 |
+| `encodeFlat`, 10,000 points | 0.82 | 0.92 | 0.91 |
+| `encodeFlat`, real-world lines | 0.79 | same | 0.54 |
+
+With the cases in the opposite order (10,000 points first), Chrome was 0.90 at 10,000 points and 0.82 on the real-world lines, WebKit 0.88 and 0.56, Firefox 0.94 and 0.99. When nothing reads the strings (only their length is used), a string built with `+=` is never flattened, so the old path looks cheaper: Chrome's real-world lines were 1.05 there and everything else was faster or the same. Any real use of the string (sending, storing, comparing it) flattens it.
+
+`/wasm`, the research harness, against 0.1.9:
+
+| | Bun 1.4.3 | Node 24 | Node 26 |
+|---|--:|--:|--:|
+| `encode`, 10 and 20 points | 0.25, 0.24 | | |
+| `encodeFlat`, 10 points | 0.27 | | |
+| `encodeFlat` from a plain array, 50 and 1,000 points | 0.32, 0.28 | | |
+| `encodeFlat` from a plain array, real-world lines | 0.46 | | |
+| `decodeMany`, 1,000 lines of 20 points | | 0.70 | 0.67 |
+| `decodeMany`, 200 lines of 100 points | | 0.68 | 0.64 |
+| `decodeMany`, 20 lines of 1,000 points, and the real-world lines | same | same | same |
+
+Gzipped bytes with esbuild, from `node scripts/size.js`:
+
+| | 0.1.9 | 0.1.10 |
+|---|--:|--:|
+| `import { decode }` | 1,115 | 1,114 |
+| `import { encode }` | 1,449 | 1,491 |
+| `import { decode, encode }` | 1,968 | 2,010 |
+| `import { decodeLatLng }` | 1,192 | 1,190 |
+| `/web`, `import { encode }` | 1,238 | 1,229 |
+| `/web`, every export | 2,056 | 2,047 |
+| browser entry, every export | 2,272 | 2,315 |
+| node and bun entries | 2,671 | 2,789 |
+| deno entry | 2,571 | 2,711 |
+| `/wasm` | 5,655 | 5,715 |
+| `/leaflet`, `/turf`, `/google` | 1,976, 2,225, 1,979 | 1,965, 2,215, 1,969 |
+
+`/lite`, `/stream`, `/flexible`, `/detect` and the CLI are the same size. The browser entry's 43 extra bytes are mostly the Firefox check. The node entry carries both `decodeLatLng` routes, and the deno entry also carries the browser cutoff's user agent check, which it doesn't use. The budgets moved with the sizes, 4% over each.
+
+Tests:
+
+- `test/rounding.test.js`: the half steps and integers above, through `encode` and `encodeFlat` on short and long lines on every entry. It fails with plain `x + 0.5`.
+- `scripts/exact-round.js`: the exhaustive version, and a check that `core.js`, `fast.js` and `text.js` round with the expression it tests.
+- `test/core.test.js` checks `decodeLatLng` against `decode` on every entry for short and long strings, every option, broken input and `onIssue`, and runs the new helper itself at both cutoffs, since which entries use it depends on the runtime. `test/wasm.test.js` covers the Bun paths on every runtime and `decodeMany` on short and long batches.
+- A differential run against the 0.1.9 sources found no difference in any result or error (code, index and message, numbers compared with `Object.is`): every entry, `/wasm` with and without string builtins, `/lite`, `/stream`, `/flexible`, `/detect`, `/presets` and the integrations, on the vectors, PostGIS, the benchmark tracks, the real-world lines and 1,500 to 2,000 rounds of random and broken input. 1.7 to 2 million checks per runtime on Node 22, 24 and 26, Bun and Deno, and 545,000 each in Chrome, Firefox and WebKit for the browser, web, wasm and lite entries.
+
 ## 0.1.9
 
 Two additions: `@duoquote/polytini/detect`, which works out how a string was encoded, and `onIssue`, which says what lenient decoding skipped. Strict output, strict errors and lenient output are the same as in 0.1.8, whose codec is 0.1.7's.

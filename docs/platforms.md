@@ -4,11 +4,11 @@
 
 Each entry only has its own code where it measured faster than the portable core on that runtime. The numbers here are million points per second at 10,000 points from the 26 November 2026 benchmark run, each entry against `/web`:
 
-- Node (`src/node.js`): encoding writes bytes into a reused `Buffer` and turns them into a string with one `latin1Slice` call, instead of building the string piece by piece. That was 1.6 to 1.8 times faster (109 against 66 on Node 24). Decoding copies the string into a `Buffer`, counts the points first so the output array is allocated once at its final size, then reads the copy. That was 1 to 14% faster on Node 22 and 24 to 26, and 43% on Node 23, which I'd put partly down to noise. On Node 22 and 23 (V8 12), results over 32,768 points are built by appending instead, which was faster there and slower on newer V8. The copy was `ucs2Write` until 0.1.3 and is `utf8Write` now: see [what changed after 0.1.3](#what-changed-after-013).
-- Bun (`src/bun.js`): the same code as Node. The `Buffer` encoder was 2.3 times faster than the core (159 against 70). The `Buffer` decoder used to measure within 5% of the core on Bun 1.4.3, ahead in some sizes and behind in others. A paired run showed where: it was 6 to 9% slower at 40 and 100 points, even from 1,000 points, and 3 to 5% faster on the real-world lines. With `utf8Write` it's even with the core up to 100 points, 9% faster at 10,000 and 10% faster on the real-world lines, so Bun keeps the Node entry.
-- Deno (`src/deno.js`): `node:buffer` was slower than the core under Deno, so this entry uses `TextEncoder.encodeInto` and `TextDecoder` on a reused byte array instead. Encoding was 1.5 times faster (103 against 69), decoding about 6% (86 against 81). The decoder is `new TextDecoder()`, UTF-8, since the bytes are ASCII anyway: in Deno 2.5 it makes the string about 3 times as fast as the `'latin1'` one it used until 0.1.3. Lines under 16 points encode through the core, because the `TextDecoder` call has a fixed cost.
-- Browsers (`src/browser.js`): lines from 512 points encode through `TextDecoder('latin1')`, 1.6 times faster in Chrome (121 against 77). Chrome is the other way around from Deno: the UTF-8 decoder was 5 to 6% slower from 10,000 points up, and starting at fewer points made the real-world lines 13% slower. Decoding stays on the core's `charCodeAt` loop, because `encodeInto` made it slower in Chrome.
-- Cloudflare Workers (the `workerd` condition, `src/deno.js`): the Deno entry, since it uses nothing Deno-only. Wrangler picked `src/browser.js` before this condition existed, and the Deno entry decoded faster than that in every run I did in workerd. It keeps the 512-point switch for encoding: starting at 16 made the real-world lines 6% slower there. See [Workers](#cloudflare-workers).
+- Node (`src/node.js`): encoding writes bytes into a reused `Buffer` and turns them into a string with one `latin1Slice` call, instead of building the string piece by piece. That was 1.6 to 1.8 times faster (109 against 66 on Node 24). Decoding copies the string into a `Buffer`, counts the points first so the output array is allocated once at its final size, then reads the copy. That was 1 to 14% faster on Node 22 and 24 to 26, and 43% on Node 23, which I'd put partly down to noise. On Node 22 and 23 (V8 12), results over 32,768 points are built by appending instead, which was faster there and slower on newer V8. The copy was `ucs2Write` until 0.1.3 and is `utf8Write` now: see [what changed after 0.1.3](#what-changed-after-013). Since 0.1.10, `decodeLatLng` on Node 22 and 23 builds the objects from `decodeFlat`'s `Float64Array` for strings of 256 characters and more, which skips one array per point (1,000 points 0.82 to 0.93 of the time, the real-world lines 0.90). Node 24 and newer keep the tuples: there the `decodeFlat` route measured even, or 5% faster on long lines with short ones 3% slower.
+- Bun (`src/bun.js`): the same code as Node. The `Buffer` encoder was 2.3 times faster than the core (159 against 70). The `Buffer` decoder used to measure within 5% of the core on Bun 1.4.3, ahead in some sizes and behind in others. A paired run showed where: it was 6 to 9% slower at 40 and 100 points, even from 1,000 points, and 3 to 5% faster on the real-world lines. With `utf8Write` it's even with the core up to 100 points, 9% faster at 10,000 and 10% faster on the real-world lines, so Bun keeps the Node entry. `decodeLatLng` goes through `decodeFlat` at every length on Bun: 0.57 to 0.79 of the time from 10 points. JavaScriptCore doesn't have V8's extra cost for a `Float64Array` over 64 bytes.
+- Deno (`src/deno.js`): `node:buffer` was slower than the core under Deno, so this entry uses `TextEncoder.encodeInto` and `TextDecoder` on a reused byte array instead. Encoding was 1.5 times faster (103 against 69), decoding about 6% (86 against 81). The decoder is `new TextDecoder()`, UTF-8, since the bytes are ASCII anyway: in Deno 2.5 it makes the string about 3 times as fast as the `'latin1'` one it used until 0.1.3. Lines under 16 points encode through the core, because the `TextDecoder` call has a fixed cost. `decodeLatLng` builds the objects from `decodeFlat` from 256 characters (0.87 at 1,000 points, 0.89 on the real-world lines).
+- Browsers (`src/browser.js`): lines from 100 points encode through `TextDecoder('latin1')`, and from 512 in Firefox. Chrome is the other way around from Deno: the UTF-8 decoder was 5 to 6% slower from 10,000 points up. Until 0.1.10 every browser switched at 512, because starting earlier made Chrome's real-world lines 13% slower in a benchmark that never read the strings it built. Once a string is read (sent, stored, compared), the `+=` one has to be flattened first, and then `TextDecoder` was faster from 16 points in Chrome 156 and WebKit (3 times in WebKit). At 100 points Chrome took 0.45 of the time and WebKit 0.19, and nothing got slower: a switch at 16 cost Chrome 4 to 5% at 10,000 points in a process that had encoded short lines first. Firefox 159 was slower below 40 points, and its real-world lines were 3 to 27% slower with any switch from 16 to 100 points, so it keeps 512. See [what changed in 0.1.10](#what-changed-in-0110). Decoding stays on the core's `charCodeAt` loop, because `encodeInto` made it slower in Chrome.
+- Cloudflare Workers (the `workerd` condition, `src/deno.js`): the Deno entry, since it uses nothing Deno-only. Wrangler picked `src/browser.js` before this condition existed, and the Deno entry decoded faster than that in every run I did in workerd. It keeps the 512-point switch for encoding: starting at 16 made the real-world lines 6% slower there. `decodeLatLng` keeps the tuples there too, since the `decodeFlat` route wasn't measured in workerd. See [Workers](#cloudflare-workers).
 - Everything else (`src/web.js`): the core alone. It uses no Node, Bun or Deno globals.
 
 ## Module formats and tools
@@ -106,7 +106,7 @@ It has the main entry's whole API, plus `decodeMany` and `encodeMany`. Where it 
 - typed arrays on long lines (`decodeFlat`, `encodeFlat` from about 1,000 points), and on V8 at every length (see [JS String Builtins](#js-string-builtins))
 - many lines in one call (`decodeMany`), where the cost of calling into WASM is paid once instead of per line
 
-Where it doesn't, it hands the call to the JavaScript core, because that measured faster on every runtime: decoding to `[lat, lng]` arrays (building the arrays is most of the work, and reading the numbers back out of WASM memory only added to it) and, where the string builtins aren't used, lines under about 30 points (calling in and moving the data costs more than the work).
+Where it doesn't, it hands the call to the JavaScript core, because that measured faster on every runtime: decoding to `[lat, lng]` arrays (building the arrays is most of the work, and reading the numbers back out of WASM memory only added to it) and, where the string builtins aren't used, lines under about 30 points (calling in and moving the data costs more than the work). The exception is `encode` and `encodeFlat` on Bun, where the core's `+=` strings are slow once read: since 0.1.10 they go through the module at every length after `init()`, 0.24 to 0.27 of the time at 10 and 20 points. `encodeFlat` on Bun also copies a plain array in its own loop instead of `Float64Array.prototype.set`, which is slow from a plain array there (0.28 to 0.46 of the time).
 
 What made the difference, from profiling each step on Node, Bun and Deno:
 
@@ -144,7 +144,7 @@ Where it's used:
 - Only on V8: Chrome 130 and newer, Node 22.19+ and 24+, Deno. Bun has the builtins too, but decoding was 4 to 7% slower there with them, and Firefox and Safari haven't been measured, so they keep the other module. So do Node 22.12 to 22.18, where the builtins need a flag, and Cloudflare Workers, which compile an imported `.wasm` without them. `init(module)` never tries it.
 - `decodeFlat` at every length. The 128-character cutoff to the JS core is gone there, because this was faster than the JS core from 10 points up.
 - `encode` and `encodeFlat` below 64 points on Node 24 and 26, below 256 in Chrome and Deno, and at every length on Node 22. Above that, one `latin1Slice` or `TextDecoder` call makes the string faster than `fromCharCodeArray`. `encodeMany` takes the same cutoff on the average line length.
-- `decodeMany` in Chrome, Deno and Node 22, one call per line. On Node 24 and 26 that was 4 to 8% slower than the other module's one call over the joined lines, so it stays there.
+- `decodeMany` in Chrome, Deno and Node 22, one call per line. On Node 24 and 26 that was 4 to 8% slower than the other module's one call over the joined lines, so it stays there, except for batches whose lines average under 300 characters: those take the builtins too since 0.1.10, 0.64 to 0.70 of the time for 1,000 lines of 20 points and 200 of 100.
 
 Detection is one compile with the option: an engine without the builtins ignores it, the `wasm:js-string` imports are then missing, and instantiating throws. The test suite runs every check on both modules, and on which one each runtime gets.
 
@@ -229,13 +229,13 @@ What a bundle gets depends on what it imports, so the first rows are imports. Mi
 
 | import | minified | gzipped |
 |---|--:|--:|
-| `import { decode }` | 2002 B | 1115 B |
-| `import { encode }` | 3076 B | 1449 B |
-| `import { decode, encode }` | 4317 B | 1968 B |
-| `import { decodeLatLng }` | 2152 B | 1192 B |
-| `import { toGeoJSON }` | 2148 B | 1190 B |
-| `/web`, `import { encode }` | 2228 B | 1238 B |
-| `/web`, `import { decode, encode }` | 3469 B | 1758 B |
+| `import { decode }` | 2002 B | 1114 B |
+| `import { encode }` | 3196 B | 1491 B |
+| `import { decode, encode }` | 4437 B | 2010 B |
+| `import { decodeLatLng }` | 2152 B | 1190 B |
+| `import { toGeoJSON }` | 2148 B | 1188 B |
+| `/web`, `import { encode }` | 2248 B | 1229 B |
+| `/web`, `import { decode, encode }` | 3489 B | 1750 B |
 | `/lite`, `import { decode }` | 478 B | 297 B |
 | `/lite`, `import { encode }` | 505 B | 349 B |
 | `/lite`, `import { decode, encode }` | 937 B | 508 B |
@@ -244,43 +244,43 @@ Whole entries, every export:
 
 | entry | minified | gzipped |
 |---|--:|--:|
-| default / web | 4466 B | 2056 B |
-| browser (the "browser" condition) | 5342 B | 2272 B |
-| node | 5776 B | 2671 B |
-| bun | 5776 B | 2671 B |
-| deno | 6377 B | 2571 B |
-| wasm (JS glue + both inlined modules) | 14336 B | 5655 B |
-| leaflet | 3975 B | 1976 B |
-| turf | 4745 B | 2225 B |
+| default / web | 4490 B | 2047 B |
+| browser (the "browser" condition) | 5468 B | 2315 B |
+| node | 6080 B | 2789 B |
+| bun | 6080 B | 2789 B |
+| deno | 6746 B | 2711 B |
+| wasm (JS glue + both inlined modules) | 14518 B | 5715 B |
+| leaflet | 3995 B | 1965 B |
+| turf | 4765 B | 2215 B |
 | presets | 818 B | 284 B |
 | flexible | 4299 B | 2110 B |
 | stream | 8384 B | 3721 B |
-| stream, PolylineDecoder only | 3451 B | 1782 B |
-| google | 3953 B | 1979 B |
+| stream, PolylineDecoder only | 3451 B | 1781 B |
+| google | 3973 B | 1969 B |
 | openlayers | 1998 B | 1068 B |
-| maplibre | 3069 B | 1585 B |
-| mapbox | 3065 B | 1587 B |
+| maplibre | 3069 B | 1584 B |
+| mapbox | 3065 B | 1586 B |
 | deckgl | 4048 B | 1958 B |
 | detect | 9351 B | 4048 B |
 | detect/land | 4345 B | 2067 B |
 | cli | 16124 B | 6987 B |
 
-The same imports with Rollup (node-resolve, commonjs, terser) and webpack 5 in production mode, gzipped, `import * as m` for every export (which also keeps the namespace object):
+The same imports with Rollup (node-resolve, commonjs, terser) and webpack 5 in production mode, gzipped, `import * as m` for every export (which also keeps the namespace object). From polyline-benchmark's `bench/size.js` on the 0.1.10 tarball, whose esbuild build keeps what it imports in a global, so its column is a little bigger than the one above:
 
 | import | esbuild | Rollup | webpack |
 |---|--:|--:|--:|
-| `import { decode }` | 1063 B | 1021 B | 1056 B |
-| `import { encode }` | 1432 B | 1433 B | 1508 B |
-| `import { decode, encode }` | 1895 B | 1907 B | 1967 B |
-| `import { decodeFlat }` | 1042 B | 973 B | 1037 B |
-| every export | 2278 B | 2287 B | 2419 B |
-| `/web`, `import { decode, encode }` | 1686 B | 1604 B | 1687 B |
-| `/web`, every export | 2061 B | 2006 B | 2137 B |
+| `import { decode }` | 1113 B | 1069 B | 1087 B |
+| `import { encode }` | 1485 B | 1483 B | 1538 B |
+| `import { decode, encode }` | 2000 B | 1983 B | 2067 B |
+| every export | 2381 B | 2406 B | 2517 B |
+| `/web`, `import { encode }` | 1228 B | 1167 B | 1209 B |
+| `/web`, `import { decode, encode }` | 1743 B | 1685 B | 1737 B |
+| `/web`, every export | 2116 B | 2082 B | 2199 B |
 | `/lite`, `import { decode }` | 295 B | 298 B | 296 B |
 | `/lite`, `import { encode }` | 349 B | 352 B | 349 B |
 | `/lite`, `import { decode, encode }` | 503 B | 512 B | 509 B |
 
-The main entry is still bigger than most polyline libraries. The small ES module ones are 230 to 340 bytes gzipped for decode or encode alone and 420 to 500 for both. The extra goes into strict-mode errors with an index, the exact slow path (precision 7 and up, huge values, `strict: false`, objects, other dimensions), both orders and the options, plus a fast loop next to each slow one. In a decode-only bundle the exact decoder is about 30% of the gzipped bytes and the options about 25%. The browser entry's `encode` adds about 210 bytes over `/web` for its TextDecoder path on long lines; import `@duoquote/polytini/web` if you'd rather have the smaller one. The WASM entry is the biggest because it carries both modules and the JS core it hands `[lat, lng]` decoding and anything unusual to.
+The main entry is still bigger than most polyline libraries. The small ES module ones are 230 to 340 bytes gzipped for decode or encode alone and 420 to 500 for both. The extra goes into strict-mode errors with an index, the exact slow path (precision 7 and up, huge values, `strict: false`, objects, other dimensions), both orders and the options, plus a fast loop next to each slow one. In a decode-only bundle the exact decoder is about 30% of the gzipped bytes and the options about 25%. The browser entry's `encode` adds about 260 bytes over `/web` for its TextDecoder path and the Firefox check; import `@duoquote/polytini/web` if you'd rather have the smaller one. The WASM entry is the biggest because it carries both modules and the JS core it hands `[lat, lng]` decoding and anything unusual to.
 
 `/lite` is the other end: the fast loops alone, with a precision number from 0 to 6 and plain errors, at 295 bytes for decode and 503 for both, built the way the benchmark repo builds every library. That's a quarter of the default entry, and 12 to 79 bytes more than the small single-purpose libraries for both. The extra is the checks for truncated strings, invalid characters and values too big for its 32-bit math, and the shape of the default entry's loops, which is what keeps it as fast as the default entry in the browser and faster than those libraries. Smaller versions measured slower. Pick it for browser bundles; on a server the main entry is faster on long lines. [api.md](api.md#smaller-lite) has the numbers, what each check costs and what lite leaves out.
 
@@ -317,6 +317,17 @@ Tried and dropped:
 ## Speed
 
 The best-at-what table is in the [README](../README.md#best-at-what). Every table, chart and round, for every runtime, is in the [benchmark repo](https://github.com/Duoquote/polyline-benchmark/blob/main/docs/results.md).
+
+## What changed in 0.1.10
+
+Four changes from the research repo's bit-tricks and path-picking studies, each measured against 0.1.9 in paired runs before it shipped: the encode loops' rounding, the browser entry's `TextDecoder` switch, `decodeLatLng` through `decodeFlat` on Bun, Node 22 and Deno, and three `/wasm` paths on Bun and Node 24 and 26. The output is the same as 0.1.9's. The [changelog](../CHANGELOG.md#0110) has the tables for every runtime and browser; the short version:
+
+- `encode` and `encodeFlat` on 100 points and more took 0.77 to 0.92 of the time on Node 22 to 26, Bun and Deno, and about the same on 10 points and the real-world lines (0.90 to 0.99).
+- The browser entry at 100 to 500 points: Chrome 0.39 to 0.46, WebKit 0.17 to 0.19, Firefox 0.92 to 1.00 (rounding only, since Firefox keeps the 512-point switch). The real-world lines: 0.85, 0.55 and 0.97.
+- `decodeLatLng` on Bun 0.56 to 0.80 at every length, on Node 22 and Deno 0.82 to 0.93 on long lines and the real-world ones.
+- `/wasm` on Bun: short `encode` calls 0.24 to 0.27, `encodeFlat` from plain arrays 0.28 to 0.46. `decodeMany` on batches of short lines on Node 24 and 26: 0.64 to 0.70.
+
+Every result of each experiment, the ones that didn't ship included, is in `rel0110/results` in the research repo.
 
 ## What changed after 0.1.3
 
