@@ -4,8 +4,8 @@
 // also the "workerd" export, for Cloudflare Workers: there it decoded faster
 // than the browser entry in every run (docs/platforms.md).
 /* @ts-self-types="../types/index.d.ts" */
-import { decode, encode, tune } from './text.js';
-import { latLngs, toGeo, fromGeo } from './core.js';
+import { decode, decodeFlat, encode, tune } from './text.js';
+import { latLngsFlat, toGeo, fromGeo } from './core.js';
 
 // A UTF-8 TextDecoder: in Deno 2.5 it made a string from the encoded bytes
 // about 3 times as fast as a 'latin1' one, so encoding got 9 to 13% faster
@@ -18,6 +18,9 @@ tune(new TextDecoder(), globalThis.Deno ? 16 : 512);
 
 export { PolylineError } from './core.js';
 export { decode, decodeFlat, encode, encodeFlat } from './text.js';
-export const decodeLatLng = /* @__PURE__ */ latLngs(decode);
+// In Deno, strings from 256 characters build the objects from decodeFlat:
+// 0.87 of the time at 1,000 points and 0.89 on the real-world lines. Not
+// measured in workerd, so it keeps the tuples there.
+export const decodeLatLng = /* @__PURE__ */ latLngsFlat(decode, decodeFlat, globalThis.Deno ? 256 : Infinity);
 export const toGeoJSON = /* @__PURE__ */ toGeo(decode);
 export const fromGeoJSON = /* @__PURE__ */ fromGeo(encode);

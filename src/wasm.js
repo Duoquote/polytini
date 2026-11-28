@@ -54,6 +54,9 @@ const ready = (instance) => {
   ex = instance.exports;
   mem = ex.memory;
   views();
+  // Set here and not at load, so short lines still encode before init on
+  // Bun too, like everywhere else.
+  if (g.Bun) enc = 0;
 };
 const views = () => {
   u8 = new Uint8Array(mem.buffer);
@@ -77,7 +80,9 @@ const v8 = !g.Bun && !!(g.process?.versions?.v8 || g.Deno || /Chrome\//.test(g.n
 function builtins() {
   if (!v8) return;
   try {
-    sx = new WebAssembly.Instance(new WebAssembly.Module(bin(strings), { builtins: ['js-string'] })).exports;
+    // Bun 1.4 throws without an imports object, even for a module with no
+    // imports.
+    sx = new WebAssembly.Instance(new WebAssembly.Module(bin(strings), { builtins: ['js-string'] }), {}).exports;
   } catch {
     return;
   }
@@ -172,6 +177,11 @@ function run(str, f) {
 // string builtins decodeFlat has no cutoff: it was faster than the JS core
 // from 10 points up on Node and in Chrome and Deno.
 const SHORT = 128;
+// Encode's cutoff, in characters like SHORT (4 per point). On Bun the core's
+// string building is slow once the string is read, so after init (see
+// ready) encode has no cutoff there: 10 and 20 points took 0.24 to 0.27 of
+// the time for encode and encodeFlat.
+let enc = SHORT;
 // With string builtins, lines under this many points encode through them,
 // and encodeMany takes them when its lines average fewer. Longer lines go
 // through bytes and one latin1Slice or TextDecoder call, which made the
@@ -185,8 +195,12 @@ const pv = g.process?.versions, node = !g.Deno && !!pv?.node, v12 = !!pv?.v8?.st
 const SB_ENCODE = g.Deno ? 256 : v12 ? Infinity : node ? 64 : 256, SB_MANY = SB_ENCODE;
 // decodeMany through the builtins, one call per line, was 4 to 8% slower
 // than the other module's one call on the joined lines on Node 24 and 26,
-// and 13% faster in Chrome. Even on Node 22 and in Deno.
-const SB_DECODE_MANY = !node || v12;
+// and 13% faster in Chrome. Even on Node 22 and in Deno. On Node 24 and 26
+// that only held for long lines: for batches of lines under MANY_SHORT
+// characters on average, one call per line took 0.64 to 0.70 of the time
+// there (1,000 lines of 20 points, 200 of 100), and the 1000 real-world lines
+// (463 characters on average) and 1,000-point lines stayed the same.
+const SB_DECODE_MANY = !node || v12, MANY_SHORT = 300;
 
 export function decodeFlat(str, o) {
   if (sx && typeof str == 'string') {
@@ -217,7 +231,7 @@ function finish(values, f) {
 
 export function encode(points, o) {
   if (sx && points?.length < SB_ENCODE) return sbEncode(points, o);
-  if (points?.length < SHORT / 4) return jsEncode(points, o);
+  if (points?.length < enc / 4) return jsEncode(points, o);
   const f = opts(o);
   if (st.dims != 2 || !Array.isArray(points)) return slowEncode(points, f);
   const n = points.length, a = +st.swap, b = 1 - a;
@@ -240,15 +254,25 @@ export function encode(points, o) {
 
 export function encodeFlat(values, o) {
   if (sx && values?.length < SB_ENCODE * 2) return sbEncodeFlat(values, o);
-  if (values?.length < SHORT / 2) return jsEncodeFlat(values, o);
+  if (values?.length < enc / 2) return jsEncodeFlat(values, o);
   const f = opts(o);
   if (st.dims != 2 || values == null || values.length % 2) return slowEncode(values, f, 1);
-  const n = values.length;
+  const n = values.length, at = base >> 3;
   room(n * 8 + n * 7 + 16);
   if (!(values instanceof Float64Array || values instanceof Float32Array)) {
+    // On Bun a plain array is checked and copied in one loop: Float64Array.set
+    // from a plain array is slow on JavaScriptCore, and this took 0.28 to 0.32
+    // of the time at 50 and 1,000 points and 0.46 on the real-world lines. On
+    // Node 24 the loop was 12 to 20% slower than set, so V8 keeps set.
+    if (g.Bun) {
+      for (let i = 0, x, sw = +st.swap; i < n; i++) {
+        if (typeof (x = values[i ^ sw]) != 'number') return slowEncode(values, f, 1);
+        f64[at + i] = x;
+      }
+      return finish(n, f) ?? slowEncode(values, f, 1);
+    }
     for (let i = 0; i < n; i++) if (typeof values[i] != 'number') return slowEncode(values, f, 1);
   }
-  const at = base >> 3;
   if (st.swap) for (let i = 0; i < n; i += 2) (f64[at + i] = values[i + 1]), (f64[at + i + 1] = values[i]);
   else f64.set(values, at);
   return finish(n, f) ?? slowEncode(values, f, 1);
@@ -305,7 +329,7 @@ export function decodeMany(lines, o) {
     len += lines[i].length;
   }
   if (st.dims != 2) return many(lines, o);
-  if (sx && SB_DECODE_MANY) {
+  if (sx && (SB_DECODE_MANY || len < MANY_SHORT * count)) {
     // One call per line: 2 to 9% faster than one call on the joined lines.
     sroom(len * 8 + 16);
     const starts = new Uint32Array(count + 1), sw = +st.swap;

@@ -57,6 +57,23 @@ const pow = (p) => (typeof p == 'number' ? POW[p] : 0) || bad('precision');
 // never encode, and drops an unused number.
 export const LIMIT = 536870912;
 
+// Rounding in the fast encode loops (here, fast.js and text.js):
+// (x < 0 ? x - 0.49999999999999994 : x + 0.49999999999999994) | 0. Adding the
+// largest double below 0.5 with x's sign and truncating rounds half away from
+// zero exactly for |x| < LIMIT: every x.5 still reaches the next integer,
+// because the sum's last bit rounds up to it, and 0.49999999999999994 stays
+// below 1, where x + 0.5 would round it up. test/rounding.test.js checks the
+// boundaries, scripts/exact-round.js every one of them. It replaced adding
+// 0.5 and setting |x| < 0.5 to 0 afterwards (see CHANGELOG 0.1.10 for the
+// speed). Two forms that give the same numbers measured slower:
+// - (x + (x < 0 ? -h : h)) | 0, /lite's: in Firefox 159 the string loop got
+//   20% slower at 100 points and 30% at 500, where this form is 8% faster.
+// - h as an exported constant: it's a load from the module on every use in
+//   V8, and encoding 100 points in Chrome got 9% slower instead of faster.
+// Math.round is exact too, but it was 10 to 40% slower on Node 24 and 40% on
+// JavaScriptCore: it returns a double, and the deltas and zigzag then run on
+// doubles.
+
 /**
  * Exact decoder for any input. Returns points, or a flat Float64Array.
  * Strict mode throws on invalid characters, on a string that ends inside a
@@ -277,14 +294,9 @@ function encodeLoop(src, f, a, flat) {
       // Anything but numbers goes the slow way, which coerces numeric
       // strings and rejects null. The range check is also false for NaN.
       if (typeof x != 'number' || typeof y != 'number' || !((x *= f) < LIMIT && x > -LIMIT && (y *= f) < LIMIT && y > -LIMIT)) return null;
-      // Round half away from zero. floor(|x| + 0.5) is exact here except for
-      // |x| = 0.49999999999999994, where the addition rounds up to 1, so any
-      // |x| < 0.5 is set to 0 afterwards. Math.round would be exact on its own,
-      // but it measured 40% slower on JavaScriptCore.
-      p = x < 0 ? -((0.5 - x) | 0) : (x + 0.5) | 0;
-      q = y < 0 ? -((0.5 - y) | 0) : (y + 0.5) | 0;
-      if (x < 0.5 && x > -0.5) p = 0;
-      if (y < 0.5 && y > -0.5) q = 0;
+      // Round half away from zero, exactly (see the note after LIMIT).
+      p = (x < 0 ? x - 0.49999999999999994 : x + 0.49999999999999994) | 0;
+      q = (y < 0 ? y - 0.49999999999999994 : y + 0.49999999999999994) | 0;
       z = p - la;
       z = (z << 1) ^ (z >> 31);
       s += z < 1024 ? CHARS[z] : chars(z);
@@ -311,6 +323,22 @@ export const withOrder = (o, order = 'lnglat') => ({ ...(typeof o == 'number' ? 
 /** {lat, lng} objects, the shape Google Maps and Leaflet take. Forces
  * [lat, lng] order so a preset like osrm6 (order: 'lnglat') can't swap them. */
 export const latLngs = (decode) => (str, o) => decode(str, withOrder(o, 'latlng')).map(([lat, lng]) => ({ lat, lng }));
+
+// latLngs for the server entries: strings from `cut` characters build the
+// objects from decodeFlat, which skips one array per point. Shorter ones go
+// through the tuples, because on V8 a Float64Array over 64 bytes gets its
+// own ArrayBuffer, about 0.3 us per call. JavaScriptCore has no such step,
+// so the Bun entry passes 0. Other dimensions keep the tuples, so the
+// objects are the same either way.
+export const latLngsFlat = (decode, flat, cut = 256) => {
+  const tuples = latLngs(decode);
+  return (str, o) => {
+    if (!(str?.length >= cut) || ((o = withOrder(o, 'latlng')).dimensions ?? 2) != 2) return tuples(str, o);
+    const a = flat(str, o), r = Array(a.length >> 1);
+    for (let i = 0; i < r.length; i++) r[i] = { lat: a[2 * i], lng: a[2 * i + 1] };
+    return r;
+  };
+};
 
 export const toGeo = (decode) => (str, o) => ({ type: 'LineString', coordinates: decode(str, withOrder(o)) });
 

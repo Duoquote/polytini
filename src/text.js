@@ -10,17 +10,31 @@
 //   exact. Under 64 characters the copy costs more than it saves.
 // - Encode: bytes into a reused buffer, then one TextDecoder call. 30 to 60%
 //   faster from 1,000 points up, but the call has a fixed cost that made
-//   lines of a few hundred points slower than the core's string building, so
-//   it starts at 512 points. Both the cost and the best decoder depend on the
-//   runtime, so an entry can change them (tune below; deno.js does).
+//   short lines slower than the core's string building, so it starts at 100
+//   points in browsers (see min below). Both the cost and the best decoder
+//   depend on the runtime, so an entry can change them (tune below; deno.js
+//   does).
 import { st, opts, LIMIT, slowEncode, decodeWith, flatWith, decodeLoop, flatLoop, encode as coreEncode, encodeFlat as coreEncodeFlat } from './core.js';
 
 const te = /* @__PURE__ */ new TextEncoder();
 // The decoder that makes the string, and the number of points encode starts
 // using it at. These are the browser entry's: in Chrome 157 a UTF-8 decoder
-// was 5 to 6% slower than 'latin1' from 10,000 points up, and starting at
-// fewer points made the real-world lines 13% slower.
-let td = /* @__PURE__ */ new TextDecoder('latin1'), min = 512;
+// was 5 to 6% slower than 'latin1' from 10,000 points up. The switch was at
+// 512 points until 0.1.10, and is at 100 now, except in Firefox. Chrome 156
+// and WebKit were faster through TextDecoder from 16 points (WebKit 3
+// times), but in Chrome a switch at 16 made 10,000 points 4 to 5% slower in
+// a process that had encoded shorter lines first. From 100 nothing was
+// slower, and 100 to 500 points took 0.39 to 0.46 of the time in Chrome and
+// 0.17 to 0.19 in WebKit. Firefox 159 was 11 to 38% slower below 40 points,
+// and with the switch anywhere from 16 to 100 points its real-world lines
+// were 3 to 27% slower, depending on what ran before, so it keeps 512.
+// That's with the string read afterwards; when nothing reads it, a string
+// built with += is never flattened and looks cheaper than it is.
+let td = /* @__PURE__ */ new TextDecoder('latin1'), min = /* @__PURE__ */ cutoff();
+// Exported for the tests, which can't change the user agent this module saw.
+export function cutoff(ua = globalThis.navigator?.userAgent) {
+  return /Firefox\//.test(ua) ? 512 : 100;
+}
 
 /**
  * Sets the decoder and the switch point for every encode after it. The bytes
@@ -133,11 +147,9 @@ function bytesLoop(src, f, a, flat) {
         y = pt[1 - a];
       }
       if (typeof x != 'number' || typeof y != 'number' || !((x *= f) < LIMIT && x > -LIMIT && (y *= f) < LIMIT && y > -LIMIT)) return null;
-      // Half away from zero, the same way as core.js.
-      p = x < 0 ? -((0.5 - x) | 0) : (x + 0.5) | 0;
-      q = y < 0 ? -((0.5 - y) | 0) : (y + 0.5) | 0;
-      if (x < 0.5 && x > -0.5) p = 0;
-      if (y < 0.5 && y > -0.5) q = 0;
+      // Half away from zero, the same way as core.js (see the note after LIMIT there).
+      p = (x < 0 ? x - 0.49999999999999994 : x + 0.49999999999999994) | 0;
+      q = (y < 0 ? y - 0.49999999999999994 : y + 0.49999999999999994) | 0;
       z = p - la;
       z = (z << 1) ^ (z >> 31);
       for (; z >= 32; z >>>= 5) b[k++] = (z & 31) + 95;

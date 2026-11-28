@@ -2,6 +2,8 @@
 // and input shapes. The same checks run for web, node, bun, deno and wasm.
 import { test, eq, near, ok, throws, entries } from './lib.js';
 import * as ref from './reference.js';
+import { latLngs, latLngsFlat } from '../src/core.js';
+import { cutoff } from '../src/text.js';
 
 const all = await entries();
 const google = '_p~iF~ps|U_ulLnnqC_mqNvxq`@';
@@ -93,6 +95,58 @@ for (const { name, api } of all) {
     eq(api.fromGeoJSON({ type: 'LineString', coordinates: line.coordinates.map((c) => [...c, 100]) }), google);
     throws(() => api.fromGeoJSON({ type: 'Point', coordinates: [1, 2] }), 'input');
     throws(() => api.fromGeoJSON(null), 'input');
+  });
+
+  // The node and deno entries build long lines' objects from decodeFlat
+  // (latLngsFlat in core.js), Bun's at every length. The objects and errors
+  // have to be the tuples' either way.
+  test(`${name}: decodeLatLng is decode's points as objects, short and long, with any options`, () => {
+    const objs = (s, o) => {
+      try {
+        return api.decode(s, { ...(typeof o == 'number' ? { precision: o } : o), order: 'latlng' }).map(([lat, lng]) => ({ lat, lng }));
+      } catch (e) {
+        return `${e.name} ${e.code} ${e.index} ${e.message}`;
+      }
+    };
+    const same = (s, o, label) => {
+      let got;
+      try {
+        got = api.decodeLatLng(s, o);
+      } catch (e) {
+        got = `${e.name} ${e.code} ${e.index} ${e.message}`;
+      }
+      eq(got, objs(s, o), label);
+    };
+    const walk = cases(5)['random walk (2000 points, long enough for every fast path)'];
+    const long = ref.encode(walk, 5), mid = ref.encode(walk.slice(0, 80), 5), issues = [];
+    ok(mid.length >= 256 && mid.length < 400, 'a line just past the cutoff');
+    const opts = [undefined, 5, 6, { precision: 6 }, { order: 'lnglat' }, { dimensions: 1 }, { dimensions: 3 }, { dimensions: 2 }, { dimensions: '2' }, { factor: 3 }, { strict: false }, { strict: false, onIssue: (e) => issues.push(e.code) }, { precision: 'x' }, { dimensions: 0 }];
+    for (const s of ['', google, mid, long, long + '?', long.slice(0, -1), long.slice(0, 300) + ' ' + long.slice(300), long.slice(0, 300) + 'ő' + long.slice(300)]) {
+      for (const o of opts) same(s, o, `${s.length} characters, ${JSON.stringify(o)}`);
+    }
+    ok(issues.length > 0, 'onIssue was called');
+    for (const s of [null, undefined, 5, Array(300).fill('?'), { length: 300 }]) same(s, undefined, String(s).slice(0, 20));
+  });
+
+  // Which entries take the decodeFlat route depends on the runtime (none on
+  // Node 24, and none here for deno.js outside Deno), so the helper itself
+  // runs too, over this entry's decoders, at both cutoffs.
+  test(`${name}: latLngsFlat gives decodeLatLng's objects and errors`, () => {
+    const call = (fn, s, o) => {
+      try {
+        return fn(s, o);
+      } catch (e) {
+        return `${e.name} ${e.code} ${e.index} ${e.message}`;
+      }
+    };
+    const want = latLngs(api.decode), walk = cases(5)['random walk (2000 points, long enough for every fast path)'];
+    const long = ref.encode(walk, 5);
+    for (const cut of [0, 256]) {
+      const got = latLngsFlat(api.decode, api.decodeFlat, cut);
+      for (const s of ['', google, long, long.slice(0, -1), long + '!', null, 5]) {
+        for (const o of [undefined, 6, { order: 'lnglat' }, { dimensions: 3 }, { dimensions: 1 }, { strict: false }, { precision: 'x' }]) eq(call(got, s, o), call(want, s, o), `cut ${cut}, ${String(s).length} characters, ${JSON.stringify(o)}`);
+      }
+    }
   });
 
   test(`${name}: strict decode errors`, () => {
@@ -331,4 +385,14 @@ test('wasm: initSync after init is a no-op, and works on its own', async () => {
   const wasm = all.find((e) => e.name == 'wasm').api;
   wasm.initSync();
   eq(wasm.decode(google), pts);
+});
+
+// The browser entry's switch to TextDecoder: 512 points in Firefox, where
+// shorter lines measured slower, and 100 in every other engine.
+test('text.js: the encode switch is at 512 points in Firefox and 100 elsewhere', () => {
+  eq(cutoff('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:159.0) Gecko/20100101 Firefox/159.0'), 512);
+  eq(cutoff('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36'), 100);
+  eq(cutoff('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15'), 100);
+  eq(cutoff(undefined), 100);
+  ok(cutoff() == 512 || cutoff() == 100);
 });

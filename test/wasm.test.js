@@ -134,3 +134,74 @@ test('wasm: init(module) uses only that module', async () => {
     WebAssembly.Module = Module;
   }
 });
+
+// On Bun, after init, encode has no JS cutoff for short lines and encodeFlat
+// checks and copies plain arrays in one loop (wasm.js). Simulated here with a
+// Bun global on a fresh copy, which also leaves out the string builtins, as
+// on Bun; on Bun itself it's the real thing. Strings and errors have to be
+// the default entry's.
+test('wasm: the Bun encode paths give the same strings and errors', async () => {
+  const had = 'Bun' in globalThis;
+  if (!had) globalThis.Bun = {};
+  try {
+    const w = await fresh();
+    // Before init, short lines still encode in JS and longer ones ask for init,
+    // the same as everywhere else.
+    eq(w.encode(pts), google);
+    eq(w.encodeFlat(pts.flat()), google);
+    throws(() => w.encode(Array(40).fill([1, 2])), 'init');
+    await w.init();
+    // The main wasm entry too: it reads the Bun global per call in encodeFlat.
+    const all = await entries(), web = all.find((e) => e.name == 'web').api, main = all.find((e) => e.name == 'wasm').api;
+    const call = (fn, x, o) => {
+      try {
+        return fn(x, o);
+      } catch (e) {
+        return `${e.name} ${e.code} ${e.index} ${e.message}`;
+      }
+    };
+    const walk = Array.from({ length: 300 }, (_, i) => [38.5 + i / 1000, -120.2 - i / 700]);
+    const lines = [[], [[1, 2]], pts, walk.slice(0, 20), walk, [[1, 2], [3, '4']], [[1, 2], null], [[1, 2], [NaN, 3]]];
+    for (const l of lines) {
+      for (const o of [undefined, 6, { order: 'lnglat' }, { strict: false }, { dimensions: 3 }]) {
+        eq(call(w.encode, l, o), call(web.encode, l, o), `encode ${l.length} points ${JSON.stringify(o)}`);
+        const flat = l.flatMap((p) => p ?? [p]);
+        eq(call(w.encodeFlat, flat, o), call(web.encodeFlat, flat, o), `encodeFlat ${flat.length} values ${JSON.stringify(o)}`);
+        eq(call(main.encodeFlat, flat, o), call(web.encodeFlat, flat, o), `main entry, encodeFlat ${flat.length} values ${JSON.stringify(o)}`);
+        eq(call(w.encodeFlat, flat.slice(1), o), call(web.encodeFlat, flat.slice(1), o), `encodeFlat odd length ${JSON.stringify(o)}`);
+        if (flat.every((x) => typeof x == 'number')) eq(call(w.encodeFlat, new Float64Array(flat), o), call(web.encodeFlat, new Float64Array(flat), o), `encodeFlat Float64Array ${JSON.stringify(o)}`);
+      }
+    }
+  } finally {
+    if (!had) delete globalThis.Bun;
+  }
+});
+
+// decodeMany takes the string builtins one line at a time where they're on
+// and, on Node 24 and 26, only when the lines average under 300 characters.
+// Short and long batches both have to give the JS decoder's numbers.
+test('wasm: decodeMany on short and long lines', async () => {
+  const all = await entries(), web = all.find((e) => e.name == 'web').api;
+  const walk = Array.from({ length: 400 }, (_, i) => [38.5 + i / 1000, -120.2 - i / 700]);
+  const long = web.encode(walk), short = web.encode(walk.slice(0, 10));
+  for (const { name, api } of all.filter((e) => e.name.startsWith('wasm'))) {
+    for (const lines of [[short, short, google], [long, long], [long, short], [], [long, short + '!']]) {
+      let want;
+      try {
+        const parts = lines.map((l) => web.decodeFlat(l)), starts = [0];
+        for (const p of parts) starts.push(starts.at(-1) + p.length / 2);
+        want = { coords: parts.flatMap((p) => [...p]), starts };
+      } catch (e) {
+        want = `${e.code} ${e.index}`;
+      }
+      let got;
+      try {
+        const r = api.decodeMany(lines);
+        got = { coords: [...r.coords], starts: [...r.starts] };
+      } catch (e) {
+        got = `${e.code} ${e.index}`;
+      }
+      eq(got, want, `${name}: ${lines.map((l) => l.length).join(', ')} characters`);
+    }
+  }
+});
