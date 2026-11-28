@@ -95,6 +95,37 @@ for (const { name, api } of all) {
     throws(() => api.fromGeoJSON(null), 'input');
   });
 
+  // The node and deno entries build long lines' objects from decodeFlat
+  // (latLngsFlat in core.js), Bun's at every length. The objects and errors
+  // have to be the tuples' either way.
+  test(`${name}: decodeLatLng is decode's points as objects, short and long, with any options`, () => {
+    const objs = (s, o) => {
+      try {
+        return api.decode(s, { ...(typeof o == 'number' ? { precision: o } : o), order: 'latlng' }).map(([lat, lng]) => ({ lat, lng }));
+      } catch (e) {
+        return `${e.name} ${e.code} ${e.index} ${e.message}`;
+      }
+    };
+    const same = (s, o, label) => {
+      let got;
+      try {
+        got = api.decodeLatLng(s, o);
+      } catch (e) {
+        got = `${e.name} ${e.code} ${e.index} ${e.message}`;
+      }
+      eq(got, objs(s, o), label);
+    };
+    const walk = cases(5)['random walk (2000 points, long enough for every fast path)'];
+    const long = ref.encode(walk, 5), mid = ref.encode(walk.slice(0, 80), 5), issues = [];
+    ok(mid.length >= 256 && mid.length < 400, 'a line just past the cutoff');
+    const opts = [undefined, 5, 6, { precision: 6 }, { order: 'lnglat' }, { dimensions: 1 }, { dimensions: 3 }, { dimensions: 2 }, { dimensions: '2' }, { factor: 3 }, { strict: false }, { strict: false, onIssue: (e) => issues.push(e.code) }, { precision: 'x' }, { dimensions: 0 }];
+    for (const s of ['', google, mid, long, long + '?', long.slice(0, -1), long.slice(0, 300) + ' ' + long.slice(300), long.slice(0, 300) + 'ő' + long.slice(300)]) {
+      for (const o of opts) same(s, o, `${s.length} characters, ${JSON.stringify(o)}`);
+    }
+    ok(issues.length > 0, 'onIssue was called');
+    for (const s of [null, undefined, 5, Array(300).fill('?'), { length: 300 }]) same(s, undefined, String(s).slice(0, 20));
+  });
+
   test(`${name}: strict decode errors`, () => {
     let e = throws(() => api.decode(google.slice(0, -1)), 'truncated');
     eq(e.name, 'PolylineError');
