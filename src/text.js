@@ -31,8 +31,9 @@ const te = /* @__PURE__ */ new TextEncoder();
 // That's with the string read afterwards; when nothing reads it, a string
 // built with += is never flattened and looks cheaper than it is.
 let td = /* @__PURE__ */ new TextDecoder('latin1'), min = /* @__PURE__ */ cutoff();
-function cutoff() {
-  return /Firefox\//.test(globalThis.navigator?.userAgent) ? 512 : 100;
+// Exported for the tests, which can't change the user agent this module saw.
+export function cutoff(ua = globalThis.navigator?.userAgent) {
+  return /Firefox\//.test(ua) ? 512 : 100;
 }
 
 /**

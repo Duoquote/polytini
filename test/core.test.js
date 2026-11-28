@@ -3,6 +3,7 @@
 import { test, eq, near, ok, throws, entries } from './lib.js';
 import * as ref from './reference.js';
 import { latLngs, latLngsFlat } from '../src/core.js';
+import { cutoff } from '../src/text.js';
 
 const all = await entries();
 const google = '_p~iF~ps|U_ulLnnqC_mqNvxq`@';
@@ -384,4 +385,14 @@ test('wasm: initSync after init is a no-op, and works on its own', async () => {
   const wasm = all.find((e) => e.name == 'wasm').api;
   wasm.initSync();
   eq(wasm.decode(google), pts);
+});
+
+// The browser entry's switch to TextDecoder: 512 points in Firefox, where
+// shorter lines measured slower, and 100 in every other engine.
+test('text.js: the encode switch is at 512 points in Firefox and 100 elsewhere', () => {
+  eq(cutoff('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:159.0) Gecko/20100101 Firefox/159.0'), 512);
+  eq(cutoff('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36'), 100);
+  eq(cutoff('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15'), 100);
+  eq(cutoff(undefined), 100);
+  ok(cutoff() == 512 || cutoff() == 100);
 });
