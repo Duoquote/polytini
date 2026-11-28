@@ -14,11 +14,12 @@ export { PolylineError } from './core.js';
 export const { decode, decodeFlat, encode, encodeFlat } = fast(Buffer, process.versions.v8?.startsWith('12.') ? 32768 : Infinity);
 // decodeLatLng builds the objects from decodeFlat on Bun at every length
 // (0.57 to 0.79 of the time from 10 points, 0.78 on the real-world lines),
-// and on Node 22 and 26 from 256 characters, about 75 points (the real-world
-// lines 0.90 and 0.92). On Node 24 (V8 13) that measured even at 1,000
-// points and on the real-world lines, and the wrapper made 10 and 20 point
-// lines 2 to 4% slower, so it keeps the plain tuples.
+// and on Node 22 and 23 (V8 12) from 256 characters, about 75 points (1,000
+// points 0.82, the real-world lines 0.90). Newer V8 keeps the plain tuples:
+// on Node 24 the decodeFlat route measured even, and on Node 26 it was 5%
+// faster on the real-world lines but the extra check made 10 and 20 point
+// lines 3% slower.
 const v = process.versions;
-export const decodeLatLng = v.bun ? latLngsFlat(decode, decodeFlat, 0) : v.v8?.startsWith('13.') ? latLngs(decode) : latLngsFlat(decode, decodeFlat);
+export const decodeLatLng = v.bun ? latLngsFlat(decode, decodeFlat, 0) : v.v8?.startsWith('12.') ? latLngsFlat(decode, decodeFlat) : latLngs(decode);
 export const toGeoJSON = toGeo(decode);
 export const fromGeoJSON = fromGeo(encode);
