@@ -1,9 +1,8 @@
 // Browser entry (the "browser" export condition): the portable core, except
-// that long lines encode through TextDecoder (text.js). In headless Chrome
-// that was about 50% faster from 1,000 points up and the same below 512,
-// where it falls back to the core. Decoding stays on the core's charCodeAt
-// loop: TextEncoder.encodeInto made it slower in Chrome. No Node, Bun or
-// Deno globals.
+// that lines from 100 points encode through TextDecoder (text.js, which has
+// the numbers for Chrome, Firefox and WebKit). Decoding stays on the core's
+// charCodeAt loop: TextEncoder.encodeInto made it slower in Chrome. No Node,
+// Bun or Deno globals.
 /* @ts-self-types="../types/index.d.ts" */
 import { decode, latLngs, toGeo, fromGeo } from './core.js';
 import { encode } from './text.js';

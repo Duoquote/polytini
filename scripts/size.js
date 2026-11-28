@@ -21,14 +21,14 @@ const external = ['node:*', 'ol', 'ol/*', 'maplibre-gl', 'mapbox-gl', '@deck.gl/
 const imports = (from, names) => `export { ${names} } from './src/${from}.js'`;
 export const entries = [
   { name: 'import { decode }', code: imports('browser', 'decode'), platform: 'browser', budget: 1160 },
-  { name: 'import { encode }', code: imports('browser', 'encode'), platform: 'browser', budget: 1500 },
-  { name: 'import { decode, encode }', code: imports('browser', 'decode, encode'), platform: 'browser', budget: 2050 },
+  { name: 'import { encode }', code: imports('browser', 'encode'), platform: 'browser', budget: 1550 },
+  { name: 'import { decode, encode }', code: imports('browser', 'decode, encode'), platform: 'browser', budget: 2090 },
   { name: 'import { decodeLatLng }', code: imports('browser', 'decodeLatLng'), platform: 'browser', budget: 1240 },
   { name: 'import { toGeoJSON }', code: imports('browser', 'toGeoJSON'), platform: 'browser', budget: 1240 },
   { name: '/web, import { encode }', code: imports('web', 'encode'), platform: 'browser', budget: 1280 },
   { name: '/web, import { decode, encode }', code: imports('web', 'decode, encode'), platform: 'browser', budget: 1820 },
   { name: 'default / web (everything)', file: 'src/web.js', platform: 'browser', budget: 2130 },
-  { name: 'browser (the "browser" condition)', file: 'src/browser.js', platform: 'browser', budget: 2300 },
+  { name: 'browser (the "browser" condition)', file: 'src/browser.js', platform: 'browser', budget: 2410 },
   { name: 'node', file: 'src/node.js', platform: 'node', budget: 2860 },
   { name: 'bun', file: 'src/bun.js', platform: 'node', budget: 2860 },
   { name: 'deno', file: 'src/deno.js', platform: 'browser', budget: 2670 },
