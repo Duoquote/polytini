@@ -19,7 +19,7 @@ tune(new TextDecoder(), globalThis.Deno ? 16 : 512);
 export { PolylineError } from './core.js';
 export { decode, decodeFlat, encode, encodeFlat } from './text.js';
 // In Deno, strings from 256 characters build the objects from decodeFlat:
-// 0.78 of the time at 1,000 points and 0.86 on the real-world lines. Not
+// 0.87 of the time at 1,000 points and 0.89 on the real-world lines. Not
 // measured in workerd, so it keeps the tuples there.
 export const decodeLatLng = /* @__PURE__ */ latLngsFlat(decode, decodeFlat, globalThis.Deno ? 256 : Infinity);
 export const toGeoJSON = /* @__PURE__ */ toGeo(decode);

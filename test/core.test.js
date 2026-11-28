@@ -2,6 +2,7 @@
 // and input shapes. The same checks run for web, node, bun, deno and wasm.
 import { test, eq, near, ok, throws, entries } from './lib.js';
 import * as ref from './reference.js';
+import { latLngs, latLngsFlat } from '../src/core.js';
 
 const all = await entries();
 const google = '_p~iF~ps|U_ulLnnqC_mqNvxq`@';
@@ -124,6 +125,27 @@ for (const { name, api } of all) {
     }
     ok(issues.length > 0, 'onIssue was called');
     for (const s of [null, undefined, 5, Array(300).fill('?'), { length: 300 }]) same(s, undefined, String(s).slice(0, 20));
+  });
+
+  // Which entries take the decodeFlat route depends on the runtime (none on
+  // Node 24, and none here for deno.js outside Deno), so the helper itself
+  // runs too, over this entry's decoders, at both cutoffs.
+  test(`${name}: latLngsFlat gives decodeLatLng's objects and errors`, () => {
+    const call = (fn, s, o) => {
+      try {
+        return fn(s, o);
+      } catch (e) {
+        return `${e.name} ${e.code} ${e.index} ${e.message}`;
+      }
+    };
+    const want = latLngs(api.decode), walk = cases(5)['random walk (2000 points, long enough for every fast path)'];
+    const long = ref.encode(walk, 5);
+    for (const cut of [0, 256]) {
+      const got = latLngsFlat(api.decode, api.decodeFlat, cut);
+      for (const s of ['', google, long, long.slice(0, -1), long + '!', null, 5]) {
+        for (const o of [undefined, 6, { order: 'lnglat' }, { dimensions: 3 }, { dimensions: 1 }, { strict: false }, { precision: 'x' }]) eq(call(got, s, o), call(want, s, o), `cut ${cut}, ${String(s).length} characters, ${JSON.stringify(o)}`);
+      }
+    }
   });
 
   test(`${name}: strict decode errors`, () => {

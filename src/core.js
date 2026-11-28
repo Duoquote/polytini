@@ -330,14 +330,14 @@ export const latLngs = (decode) => (str, o) => decode(str, withOrder(o, 'latlng'
 // own ArrayBuffer, about 0.3 us per call. JavaScriptCore has no such step,
 // so the Bun entry passes 0. Other dimensions keep the tuples, so the
 // objects are the same either way.
-export const latLngsFlat = (decode, flat, cut = 256) => (str, o) => {
-  o = withOrder(o, 'latlng');
-  if (str?.length >= cut && (o.dimensions ?? 2) == 2) {
+export const latLngsFlat = (decode, flat, cut = 256) => {
+  const tuples = latLngs(decode);
+  return (str, o) => {
+    if (!(str?.length >= cut) || ((o = withOrder(o, 'latlng')).dimensions ?? 2) != 2) return tuples(str, o);
     const a = flat(str, o), r = Array(a.length >> 1);
     for (let i = 0; i < r.length; i++) r[i] = { lat: a[2 * i], lng: a[2 * i + 1] };
     return r;
-  }
-  return decode(str, o).map(([lat, lng]) => ({ lat, lng }));
+  };
 };
 
 export const toGeo = (decode) => (str, o) => ({ type: 'LineString', coordinates: decode(str, withOrder(o)) });
