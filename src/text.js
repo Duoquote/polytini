@@ -13,7 +13,7 @@
 //   lines of a few hundred points slower than the core's string building, so
 //   it starts at 512 points. Both the cost and the best decoder depend on the
 //   runtime, so an entry can change them (tune below; deno.js does).
-import { st, opts, LIMIT, slowEncode, decodeWith, flatWith, decodeLoop, flatLoop, encode as coreEncode, encodeFlat as coreEncodeFlat } from './core.js';
+import { st, opts, LIMIT, H, slowEncode, decodeWith, flatWith, decodeLoop, flatLoop, encode as coreEncode, encodeFlat as coreEncodeFlat } from './core.js';
 
 const te = /* @__PURE__ */ new TextEncoder();
 // The decoder that makes the string, and the number of points encode starts
@@ -133,11 +133,9 @@ function bytesLoop(src, f, a, flat) {
         y = pt[1 - a];
       }
       if (typeof x != 'number' || typeof y != 'number' || !((x *= f) < LIMIT && x > -LIMIT && (y *= f) < LIMIT && y > -LIMIT)) return null;
-      // Half away from zero, the same way as core.js.
-      p = x < 0 ? -((0.5 - x) | 0) : (x + 0.5) | 0;
-      q = y < 0 ? -((0.5 - y) | 0) : (y + 0.5) | 0;
-      if (x < 0.5 && x > -0.5) p = 0;
-      if (y < 0.5 && y > -0.5) q = 0;
+      // Half away from zero, the same way as core.js (see H there).
+      p = (x + (x < 0 ? -H : H)) | 0;
+      q = (y + (y < 0 ? -H : H)) | 0;
       z = p - la;
       z = (z << 1) ^ (z >> 31);
       for (; z >= 32; z >>>= 5) b[k++] = (z & 31) + 95;

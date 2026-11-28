@@ -57,6 +57,18 @@ const pow = (p) => (typeof p == 'number' ? POW[p] : 0) || bad('precision');
 // never encode, and drops an unused number.
 export const LIMIT = 536870912;
 
+// The largest double below 0.5. Adding it with x's sign and truncating
+// rounds half away from zero exactly for |x| < LIMIT: every x.5 still
+// reaches the next integer, because the sum's last bit rounds up to it, and
+// 0.49999999999999994 stays below 1, where x + 0.5 would round it up.
+// test/rounding.test.js checks the boundaries, scripts/exact-round.js every
+// one of them. Encoding measured 6 to 17% faster from 100 points up than
+// adding 0.5 and setting |x| < 0.5 to 0 afterwards, on Node 22 to 26, Bun,
+// Deno and Chrome. Math.round is exact too, but it was 10 to 40% slower on
+// Node 24 and 40% on JavaScriptCore: it returns a double, and the deltas and
+// zigzag then run on doubles.
+export const H = 0.49999999999999994;
+
 /**
  * Exact decoder for any input. Returns points, or a flat Float64Array.
  * Strict mode throws on invalid characters, on a string that ends inside a
@@ -277,14 +289,9 @@ function encodeLoop(src, f, a, flat) {
       // Anything but numbers goes the slow way, which coerces numeric
       // strings and rejects null. The range check is also false for NaN.
       if (typeof x != 'number' || typeof y != 'number' || !((x *= f) < LIMIT && x > -LIMIT && (y *= f) < LIMIT && y > -LIMIT)) return null;
-      // Round half away from zero. floor(|x| + 0.5) is exact here except for
-      // |x| = 0.49999999999999994, where the addition rounds up to 1, so any
-      // |x| < 0.5 is set to 0 afterwards. Math.round would be exact on its own,
-      // but it measured 40% slower on JavaScriptCore.
-      p = x < 0 ? -((0.5 - x) | 0) : (x + 0.5) | 0;
-      q = y < 0 ? -((0.5 - y) | 0) : (y + 0.5) | 0;
-      if (x < 0.5 && x > -0.5) p = 0;
-      if (y < 0.5 && y > -0.5) q = 0;
+      // Round half away from zero: add H with x's sign and truncate. See H.
+      p = (x + (x < 0 ? -H : H)) | 0;
+      q = (y + (y < 0 ? -H : H)) | 0;
       z = p - la;
       z = (z << 1) ^ (z >> 31);
       s += z < 1024 ? CHARS[z] : chars(z);
