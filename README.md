@@ -81,13 +81,13 @@ From the same run, across every runtime (geometric mean over runtimes and line l
 
 | Situation | Best | Runner-up | Margin |
 |---|---|---|--:|
-| Decode short lines (10 and 100 points) | **@duoquote/polytini** | @placemarkio/polyline | 1.01x faster, within the noise |
-| Decode long lines (10,000 and 100,000 points) | **@duoquote/polytini** | @googlemaps/polyline-codec | 1.20x faster |
-| Decode real-world lines (median 82 points) | **@duoquote/polytini** | @googlemaps/polyline-codec | 1.27x faster |
-| Encode, any length | **@duoquote/polytini** | google-polyline | 2.01x faster |
-| Decode to typed arrays | **@duoquote/polytini (Float64Array)** | @duoquote/polytini (wasm, Float64Array) | 1.00x faster, within the noise |
-| Encode from typed arrays | **@duoquote/polytini (wasm, Float64Array)** | @duoquote/polytini (Float64Array) | 1.03x faster, within the noise |
-| Decode 1000 lines in one call | **@duoquote/polytini (wasm decodeMany/encodeMany)** | @duoquote/polytini (wasm, Float64Array) | 1.57x faster |
+| Decode short lines (10 and 100 points) | **@duoquote/polytini** | @placemarkio/polyline | 1.04x faster |
+| Decode long lines (10,000 and 100,000 points) | **@duoquote/polytini** | @googlemaps/polyline-codec | 1.13x faster |
+| Decode real-world lines (median 82 points) | **@duoquote/polytini** | @googlemaps/polyline-codec | 1.26x faster |
+| Encode, any length | **@duoquote/polytini** | google-polyline | 2.18x faster |
+| Decode to typed arrays | **@duoquote/polytini (wasm, Float64Array)** | @duoquote/polytini (Float64Array) | 1.03x faster, within the noise |
+| Encode from typed arrays | **@duoquote/polytini (Float64Array)** | @duoquote/polytini (wasm, Float64Array) | 1.07x faster |
+| Decode 1000 lines in one call | **@duoquote/polytini (wasm decodeMany/encodeMany)** | @duoquote/polytini (wasm, Float64Array) | 1.48x faster |
 | Least memory per decode (10,000 points, [lat, lng] arrays) | **@duoquote/polytini (764.8 KB)** | @googlemaps/polyline-codec (766.2 KB) | 0.2% less |
 | Smallest bundle, decode only (gzipped) | @placemarkio/polyline (230 B) | @googlemaps/polyline-codec (252 B) | 22 B smaller |
 | Smallest bundle, decode and encode (gzipped) | @placemarkio/polyline (424 B) | google-polyline (464 B) | 40 B smaller |
