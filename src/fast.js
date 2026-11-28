@@ -24,7 +24,7 @@
 //   values alternate at random, but slower on the GPS tracks, where they come
 //   in runs the branch predictor learns. Branchy won 5 of the 6 columns.
 // - Strings under 64 characters skip the copy and use the core's loop.
-import { opts, st, LIMIT, H, slowDecode, slowEncode, decodeLoop, flatLoop, flip } from './core.js';
+import { opts, st, LIMIT, slowDecode, slowEncode, decodeLoop, flatLoop, flip } from './core.js';
 
 // Scratch memory is reused between calls up to this size. Bigger inputs get
 // a temporary buffer, so one huge line doesn't pin megabytes for good.
@@ -147,9 +147,9 @@ export function fast(Buffer, grow = Infinity) {
           y = pt[1 - a];
         }
         if (typeof x != 'number' || typeof y != 'number' || !((x *= f) < LIMIT && x > -LIMIT && (y *= f) < LIMIT && y > -LIMIT)) return null;
-        // Half away from zero, the same way as core.js (see H there).
-        p = (x + (x < 0 ? -H : H)) | 0;
-        q = (y + (y < 0 ? -H : H)) | 0;
+        // Half away from zero, the same way as core.js (see the note after LIMIT there).
+        p = (x + (x < 0 ? -0.49999999999999994 : 0.49999999999999994)) | 0;
+        q = (y + (y < 0 ? -0.49999999999999994 : 0.49999999999999994)) | 0;
         z = p - la;
         z = (z << 1) ^ (z >> 31);
         for (; z >= 32; z >>>= 5) buf[k++] = (z & 31) + 95;

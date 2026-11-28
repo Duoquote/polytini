@@ -1,6 +1,6 @@
 // Rounding at the half steps, on every entry. The fast encode loops round
-// with (x + (x < 0 ? -H : H)) | 0, where H is the largest double below 0.5
-// (core.js). This checks a sample of the values where that could go wrong
+// by adding the largest double below 0.5 with x's sign and truncating (see
+// the note after LIMIT in core.js). This checks a sample of the values where that could go wrong
 // against Math.round on the magnitude, which is the definition (and what
 // slowEncode and the reference do): k + 0.5 and its 8 nearest doubles on
 // each side, k and its nearest doubles, both signs, for every k below 2048,

@@ -10,22 +10,24 @@
 // doubles on each side, and k and its 2 nearest on each side (at half the
 // spacing below k, so powers of two are covered), both signs. --random adds
 // that many random bit patterns below 2^29 and random coordinates times
-// 10^p. Each value goes through the loops' expression,
-// (x + (x < 0 ? -H : H)) | 0 with H from src/core.js, and is compared with
-// Math.round on the magnitude, which is half away from zero and what
-// slowEncode does. As a control, plain (x + 0.5) | 0 is checked too: it has
-// to fail at exactly ±0.49999999999999994, or the harness isn't seeing the
-// case H exists for.
+// 10^p. Each value goes through the loops' expression (EXPR, which has to
+// appear in src/core.js, src/fast.js and src/text.js for x and y, or the
+// script fails) and is compared with Math.round on the magnitude, which is
+// half away from zero and what slowEncode does. As a control, plain
+// (x + 0.5) | 0 is checked too: it has to fail at exactly
+// ±0.49999999999999994, or the harness isn't seeing the case the loops'
+// form is for.
 //
-// Every k below 2^29 is about 24 billion values: about 5 minutes on 6 cores
-// of a Ryzen 7 5800X with Node 24. Exits 1 if the expression is wrong for
-// any value.
+// Every k below 2^29 with --random 200000000 is 24.8 billion values: 124 s
+// on 6 workers of a Ryzen 7 5800X with Node 25. Exits 1 if the expression is
+// wrong for any value.
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
+import { readFileSync } from 'node:fs';
 import os from 'node:os';
-import { H, LIMIT } from '../src/core.js';
+import { LIMIT } from '../src/core.js';
 
-const round = (x) => (x + (x < 0 ? -H : H)) | 0;
-const plain = (x) => (x < 0 ? -((0.5 - x) | 0) : (x + 0.5) | 0);
+const EXPR = '(x + (x < 0 ? -0.49999999999999994 : 0.49999999999999994)) | 0';
+const round = (x) => (x + (x < 0 ? -0.49999999999999994 : 0.49999999999999994)) | 0;const plain = (x) => (x < 0 ? -((0.5 - x) | 0) : (x + 0.5) | 0);
 const want = (x) => (x < 0 ? -Math.round(-x) : Math.round(x));
 
 function part({ from, to, random, seed }) {
@@ -75,6 +77,16 @@ function part({ from, to, random, seed }) {
 
 if (!isMainThread) parentPort.postMessage(part(workerData));
 else {
+  // The loops have to round the way this checks.
+  for (const f of ['core', 'fast', 'text']) {
+    const src = readFileSync(new URL(`../src/${f}.js`, import.meta.url), 'utf8');
+    for (const v of ['x', 'y']) {
+      if (!src.includes(EXPR.replaceAll('x', v))) {
+        console.error(`src/${f}.js doesn't round ${v} with ${EXPR.replaceAll('x', v)}`);
+        process.exit(1);
+      }
+    }
+  }
   const args = process.argv.slice(2);
   const opt = (n, d) => (args.includes('--' + n) ? Number(args[args.indexOf('--' + n) + 1]) : d);
   const from = opt('from', 0), to = opt('to', LIMIT), random = opt('random', 0), n = opt('workers', Math.max(1, os.availableParallelism() - 2));
@@ -88,7 +100,7 @@ else {
   const sum = (key) => parts.reduce((a, p) => a + p[key], 0);
   const list = (key) => parts.flatMap((p) => p[key]).slice(0, 5).join(', ');
   console.log(`k ${from} to ${to}, ${random} random: ${sum('tested')} values in ${((Date.now() - t0) / 1000).toFixed(0)} s on ${n} workers`);
-  console.log(`  (x + (x < 0 ? -H : H)) | 0: ${sum('wrong')} wrong${sum('wrong') ? ', e.g. ' + list('bad') : ''}`);
+  console.log(`  ${EXPR}: ${sum('wrong')} wrong${sum('wrong') ? ', e.g. ' + list('bad') : ''}`);
   console.log(`  control, (x + 0.5) | 0: ${sum('control')} wrong${sum('control') ? ', e.g. ' + list('controlBad') : ''}`);
   // The control only sees its failure when k = 0 is in range.
   if (sum('wrong') || (from == 0 && sum('control') != 2)) process.exitCode = 1;
