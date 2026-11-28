@@ -58,17 +58,19 @@ const pow = (p) => (typeof p == 'number' ? POW[p] : 0) || bad('precision');
 export const LIMIT = 536870912;
 
 // Rounding in the fast encode loops (here, fast.js and text.js):
-// (x + (x < 0 ? -0.49999999999999994 : 0.49999999999999994)) | 0. Adding the
+// (x < 0 ? x - 0.49999999999999994 : x + 0.49999999999999994) | 0. Adding the
 // largest double below 0.5 with x's sign and truncating rounds half away from
 // zero exactly for |x| < LIMIT: every x.5 still reaches the next integer,
 // because the sum's last bit rounds up to it, and 0.49999999999999994 stays
 // below 1, where x + 0.5 would round it up. test/rounding.test.js checks the
 // boundaries, scripts/exact-round.js every one of them. It replaced adding
 // 0.5 and setting |x| < 0.5 to 0 afterwards (see CHANGELOG 0.1.10 for the
-// speed). The number is written out in each loop: as an exported constant
-// it's a load from the module on every use in V8, and encoding 100 points in
-// Chrome was 9% slower than before instead of 2 times faster. Math.round is
-// exact too, but it was 10 to 40% slower on Node 24 and 40% on
+// speed). Two forms that give the same numbers measured slower:
+// - (x + (x < 0 ? -h : h)) | 0, /lite's: in Firefox 159 the string loop got
+//   20% slower at 100 points and 30% at 500, where this form is 8% faster.
+// - h as an exported constant: it's a load from the module on every use in
+//   V8, and encoding 100 points in Chrome got 9% slower instead of faster.
+// Math.round is exact too, but it was 10 to 40% slower on Node 24 and 40% on
 // JavaScriptCore: it returns a double, and the deltas and zigzag then run on
 // doubles.
 
@@ -293,8 +295,8 @@ function encodeLoop(src, f, a, flat) {
       // strings and rejects null. The range check is also false for NaN.
       if (typeof x != 'number' || typeof y != 'number' || !((x *= f) < LIMIT && x > -LIMIT && (y *= f) < LIMIT && y > -LIMIT)) return null;
       // Round half away from zero, exactly (see the note after LIMIT).
-      p = (x + (x < 0 ? -0.49999999999999994 : 0.49999999999999994)) | 0;
-      q = (y + (y < 0 ? -0.49999999999999994 : 0.49999999999999994)) | 0;
+      p = (x < 0 ? x - 0.49999999999999994 : x + 0.49999999999999994) | 0;
+      q = (y < 0 ? y - 0.49999999999999994 : y + 0.49999999999999994) | 0;
       z = p - la;
       z = (z << 1) ^ (z >> 31);
       s += z < 1024 ? CHARS[z] : chars(z);

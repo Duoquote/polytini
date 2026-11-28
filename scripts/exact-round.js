@@ -26,8 +26,9 @@ import { readFileSync } from 'node:fs';
 import os from 'node:os';
 import { LIMIT } from '../src/core.js';
 
-const EXPR = '(x + (x < 0 ? -0.49999999999999994 : 0.49999999999999994)) | 0';
-const round = (x) => (x + (x < 0 ? -0.49999999999999994 : 0.49999999999999994)) | 0;const plain = (x) => (x < 0 ? -((0.5 - x) | 0) : (x + 0.5) | 0);
+const EXPR = '(x < 0 ? x - 0.49999999999999994 : x + 0.49999999999999994) | 0';
+const round = (x) => (x < 0 ? x - 0.49999999999999994 : x + 0.49999999999999994) | 0;
+const plain = (x) => (x < 0 ? -((0.5 - x) | 0) : (x + 0.5) | 0);
 const want = (x) => (x < 0 ? -Math.round(-x) : Math.round(x));
 
 function part({ from, to, random, seed }) {

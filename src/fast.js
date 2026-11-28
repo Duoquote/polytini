@@ -148,8 +148,8 @@ export function fast(Buffer, grow = Infinity) {
         }
         if (typeof x != 'number' || typeof y != 'number' || !((x *= f) < LIMIT && x > -LIMIT && (y *= f) < LIMIT && y > -LIMIT)) return null;
         // Half away from zero, the same way as core.js (see the note after LIMIT there).
-        p = (x + (x < 0 ? -0.49999999999999994 : 0.49999999999999994)) | 0;
-        q = (y + (y < 0 ? -0.49999999999999994 : 0.49999999999999994)) | 0;
+        p = (x < 0 ? x - 0.49999999999999994 : x + 0.49999999999999994) | 0;
+        q = (y < 0 ? y - 0.49999999999999994 : y + 0.49999999999999994) | 0;
         z = p - la;
         z = (z << 1) ^ (z >> 31);
         for (; z >= 32; z >>>= 5) buf[k++] = (z & 31) + 95;
